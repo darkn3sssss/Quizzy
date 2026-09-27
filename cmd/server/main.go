@@ -29,6 +29,8 @@ func main() {
 	mux.HandleFunc("POST /rooms/{code}/join", roomHandler.JoinRoom)
 	mux.HandleFunc("POST /rooms/{code}/next", roomHandler.NextQuestion)
 	mux.HandleFunc("POST /rooms/{code}/answer", answerHandler.AnswerOnQusetion)
+	fileServer := http.FileServer(http.Dir("./web/static"))
+	mux.Handle("/", fileServer)
 	log.Println("сервер слушает порт :8080")
 	log.Fatal(http.ListenAndServe(":8080", corsMiddleware(mux)))
 }
