@@ -20,7 +20,7 @@ type Room struct {
 	CurrentQuestion int                   `json:"current_question"`
 	StartTime       int64                 `json:"start_time"`
 	Status          string                `json:"status"`
-	Players         map[string]Player     `json:"players"`
+	Players         map[string]*Player    `json:"players"`
 	Answers         map[string]([]Answer) `json:"answers"`
 }
 
@@ -55,4 +55,9 @@ type NextQuestionResponse struct {
 	Status          string          `json:"status"`
 	CurrentQuestion int             `json:"current_question"`
 	Question        *PublicQuestion `json:"question,omitempty"`
+}
+
+type AnswerResponse struct {
+	Correct  bool `json:"correct"`
+	NewScore int  `json:"new_score"`
 }
