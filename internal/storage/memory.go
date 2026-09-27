@@ -27,7 +27,7 @@ func (memS MemoryStorage) CreateQuiz(q models.Quiz) error {
 
 func (memS MemoryStorage) GetQuiz(id string) (models.Quiz, error) {
 	if _, ok := memS.quizzes[id]; !ok {
-		return models.Quiz{}, errors.New("wrong quiz ID")
+		return models.Quiz{}, errors.New("invalid quiz ID")
 	}
 	return *memS.quizzes[id], nil
 }
@@ -43,7 +43,7 @@ func (memS MemoryStorage) CreateRoom(r models.Room) error {
 
 func (memS MemoryStorage) GetRoom(id string) (models.Room, error) {
 	if _, ok := memS.rooms[id]; !ok {
-		return models.Room{}, errors.New("wrong room ID")
+		return models.Room{}, errors.New("invalid room ID")
 	}
 	return *memS.rooms[id], nil
 }
@@ -58,7 +58,7 @@ func (memS MemoryStorage) UpdateRoom(r models.Room) error {
 
 func (memS MemoryStorage) AddPlayer(roomID string, p models.Player) error {
 	if _, ok := memS.rooms[roomID]; !ok {
-		return errors.New("wrong room ID")
+		return errors.New("invalid room ID")
 	}
 	memS.rooms[roomID].Players = append(memS.rooms[roomID].Players, p)
 	return nil
@@ -66,7 +66,7 @@ func (memS MemoryStorage) AddPlayer(roomID string, p models.Player) error {
 
 func (memS MemoryStorage) SaveAnswer(roomID string, a models.Answer) error {
 	if _, ok := memS.rooms[roomID]; !ok {
-		return errors.New("wrong room ID")
+		return errors.New("invalid room ID")
 	}
 	memS.rooms[roomID].Answers[a.QuestionID] = append(memS.rooms[roomID].Answers[a.QuestionID], a)
 	return nil
