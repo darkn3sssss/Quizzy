@@ -43,7 +43,7 @@ type JoinRequest struct {
 
 type AnswerRequest struct {
 	PlayerID string `json:"player_id"`
-	Option   string `json:"option"`
+	Option   int    `json:"option"`
 }
 
 type PublicQuestion struct {
