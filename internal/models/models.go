@@ -16,8 +16,9 @@ type Question struct {
 
 type Room struct {
 	QuizID          string                `json:"quiz_id"`
-	RoomCode        string                `json:"room_code"`
+	RoomID          string                `json:"room_id"`
 	CurrentQuestion int                   `json:"current_question"`
+	StartTime       int64                 `json:"start_time"`
 	Status          string                `json:"status"`
 	Players         []Player              `json:"players"`
 	Answers         map[string]([]Answer) `json:"answers"`
@@ -34,4 +35,8 @@ type Answer struct {
 	QuestionID string `json:"question_id"`
 	Option     int    `json:"option"`
 	AnsweredAt int64  `json:"answered_at"`
+}
+
+type JoinRequest struct {
+	Name string `json:"name"`
 }

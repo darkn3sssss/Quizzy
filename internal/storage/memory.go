@@ -33,11 +33,11 @@ func (memS MemoryStorage) GetQuiz(id string) (models.Quiz, error) {
 }
 
 func (memS MemoryStorage) CreateRoom(r models.Room) error {
-	if _, ok := memS.rooms[r.RoomCode]; ok {
+	if _, ok := memS.rooms[r.RoomID]; ok {
 		return errors.New("room with this id exist")
 	}
-	memS.rooms[r.RoomCode] = &r
-	memS.rooms[r.RoomCode].Answers = make(map[string][]models.Answer)
+	memS.rooms[r.RoomID] = &r
+	memS.rooms[r.RoomID].Answers = make(map[string][]models.Answer)
 	return nil
 }
 
@@ -49,10 +49,10 @@ func (memS MemoryStorage) GetRoom(id string) (models.Room, error) {
 }
 
 func (memS MemoryStorage) UpdateRoom(r models.Room) error {
-	if _, ok := memS.rooms[r.RoomCode]; !ok {
+	if _, ok := memS.rooms[r.RoomID]; !ok {
 		return errors.New("cannot update a non-existent room")
 	}
-	memS.rooms[r.RoomCode] = &r
+	memS.rooms[r.RoomID] = &r
 	return nil
 }
 
