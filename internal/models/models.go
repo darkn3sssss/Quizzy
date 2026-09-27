@@ -41,6 +41,11 @@ type JoinRequest struct {
 	Name string `json:"name"`
 }
 
+type AnswerRequest struct {
+	PlayerID string `json:"player_id"`
+	Option   string `json:"option"`
+}
+
 type PublicQuestion struct {
 	Text    string   `json:"text"`
 	Options []string `json:"options"`
