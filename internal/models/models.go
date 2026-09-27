@@ -20,7 +20,7 @@ type Room struct {
 	CurrentQuestion int                   `json:"current_question"`
 	StartTime       int64                 `json:"start_time"`
 	Status          string                `json:"status"`
-	Players         []Player              `json:"players"`
+	Players         map[string]Player     `json:"players"`
 	Answers         map[string]([]Answer) `json:"answers"`
 }
 

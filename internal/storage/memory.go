@@ -60,7 +60,7 @@ func (memS MemoryStorage) AddPlayer(roomID string, p models.Player) error {
 	if _, ok := memS.rooms[roomID]; !ok {
 		return errors.New("invalid room ID")
 	}
-	memS.rooms[roomID].Players = append(memS.rooms[roomID].Players, p)
+	memS.rooms[roomID].Players[p.ID] = p
 	return nil
 }
 
