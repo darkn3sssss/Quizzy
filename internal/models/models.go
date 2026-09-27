@@ -49,5 +49,5 @@ type PublicQuestion struct {
 type NextQuestionResponse struct {
 	Status          string          `json:"status"`
 	CurrentQuestion int             `json:"current_question"`
-	Question        *PublicQuestion `json:"question"`
+	Question        *PublicQuestion `json:"question,omitempty"`
 }
