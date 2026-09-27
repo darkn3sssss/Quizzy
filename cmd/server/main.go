@@ -15,6 +15,8 @@ type HealthStatus struct {
 func main() {
 	memory := storage.InitMemStorage()
 	quizHandler := handlers.NewQuizHandler(memory)
+	roomHandler := handlers.NewRoomHandler(memory)
+	answerHandler := handlers.NewAnswerHandler(memory)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -22,6 +24,10 @@ func main() {
 	})
 	mux.HandleFunc("GET /quiz/{id}", quizHandler.GetQuiz)
 	mux.HandleFunc("POST /quiz", quizHandler.PostQuiz)
+	mux.HandleFunc("POST /rooms", roomHandler.CreateRoom)
+	mux.HandleFunc("POST /rooms/{code}/join", roomHandler.JoinRoom)
+	mux.HandleFunc("POST /rooms/{code}/next", roomHandler.NextQuestion)
+	mux.HandleFunc("POST /rooms/{code}/answer", answerHandler.AnswerOnQusetion)
 	log.Println("сервер слушает порт :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
