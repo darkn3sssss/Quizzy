@@ -63,8 +63,9 @@ type AnswerResponse struct {
 }
 
 type RoomStateResponse struct {
-	Status        string             `json:"status"`
-	Question      *PublicQuestion    `json:"question,omitempty"`
-	TimeRemaining int64              `json:"time_remaining"`
-	Players       map[string]*Player `json:"players"`
+	Status          string             `json:"status"`
+	Question        *PublicQuestion    `json:"question,omitempty"`
+	CurrentQuestion int                `json:"current_question"`
+	TimeRemaining   int64              `json:"time_remaining"`
+	Players         map[string]*Player `json:"players"`
 }

@@ -145,10 +145,11 @@ func (rh *RoomHandler) GetState(w http.ResponseWriter, r *http.Request) {
 		timeRemaining = 0
 	}
 	roomStateResponse := models.RoomStateResponse{
-		Status:        room.Status,
-		Question:      publicQuestion,
-		TimeRemaining: timeRemaining,
-		Players:       room.Players,
+		Status:          room.Status,
+		Question:        publicQuestion,
+		CurrentQuestion: room.CurrentQuestion,
+		TimeRemaining:   timeRemaining,
+		Players:         room.Players,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(roomStateResponse)
