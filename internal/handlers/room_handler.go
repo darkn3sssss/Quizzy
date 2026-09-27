@@ -60,7 +60,7 @@ func (rh *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "entry closed", http.StatusConflict)
 		return
 	}
-	playerID := time.Now().Unix()
+	playerID := time.Now().UnixNano()
 	playerIDStr := strconv.FormatInt(playerID, 10)
 	player := models.Player{
 		ID:    playerIDStr,
@@ -98,7 +98,7 @@ func (rh *RoomHandler) NextQuestion(w http.ResponseWriter, r *http.Request) {
 		room.Status = "finished"
 	} else {
 		room.Status = "active"
-		room.StartTime = time.Now().Unix()
+		room.StartTime = time.Now().UnixNano()
 		publicQuestion = &models.PublicQuestion{
 			Text:    quiz.Questions[room.CurrentQuestion].Text,
 			Options: quiz.Questions[room.CurrentQuestion].Options,
@@ -129,7 +129,7 @@ func (rh *RoomHandler) GetState(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	elapsed := time.Now().Unix() - room.StartTime
+	elapsed := time.Now().UnixNano() - room.StartTime
 	var timeRemaining int64
 	var publicQuestion *models.PublicQuestion
 	if -1 < room.CurrentQuestion && room.CurrentQuestion < len(quiz.Questions) {

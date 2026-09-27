@@ -34,7 +34,7 @@ func (qh *QuizHandler) PostQuiz(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
-	unixTime := time.Now().Unix()
+	unixTime := time.Now().UnixNano()
 	quizID := strconv.FormatInt(unixTime, 10)
 	quiz.ID = quizID
 	if err := qh.storage.CreateQuiz(quiz); err != nil {

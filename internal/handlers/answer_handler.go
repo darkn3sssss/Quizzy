@@ -48,7 +48,7 @@ func (ah *AnswerHandler) AnswerOnQusetion(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	answeredAt := time.Now().Unix()
+	answeredAt := time.Now().UnixNano()
 	newAnswer := models.Answer{
 		PlayerID:   answerRequest.PlayerID,
 		QuestionID: currentIDQuestion,
