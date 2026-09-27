@@ -1,37 +1,37 @@
 package models
 
 type Quiz struct {
-	ID        string
-	Title     string
-	Questions []Question
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Questions []Question `json:"questions"`
 }
 
 type Question struct {
-	ID            string
-	Text          string
-	Options       []string
-	CorrectOption int
-	TimeLimit     int
+	ID            string   `json:"id"`
+	Text          string   `json:"text"`
+	Options       []string `json:"options"`
+	CorrectOption int      `json:"correct_option"`
+	TimeLimit     int      `json:"time_limit"`
 }
 
 type Room struct {
-	QuizID          string
-	RoomCode        string
-	CurrentQuestion int
-	Status          string
-	Players         []Player
-	Answers         map[string]([]Answer)
+	QuizID          string                `json:"quiz_id"`
+	RoomCode        string                `json:"room_code"`
+	CurrentQuestion int                   `json:"current_question"`
+	Status          string                `json:"status"`
+	Players         []Player              `json:"players"`
+	Answers         map[string]([]Answer) `json:"answers"`
 }
 
 type Player struct {
-	ID    string
-	Name  string
-	Score int
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Score int    `json:"score"`
 }
 
 type Answer struct {
-	PlayerID   string
-	QuestionID string
-	Option     int
-	AnsweredAt int64
+	PlayerID   string `json:"players_id"`
+	QuestionID string `json:"question_id"`
+	Option     int    `json:"option"`
+	AnsweredAt int64  `json:"answered_at"`
 }
