@@ -40,3 +40,14 @@ type Answer struct {
 type JoinRequest struct {
 	Name string `json:"name"`
 }
+
+type PublicQuestion struct {
+	Text    string   `json:"text"`
+	Options []string `json:"options"`
+}
+
+type NextQuestionResponse struct {
+	Status          string          `json:"status"`
+	CurrentQuestion int             `json:"current_question"`
+	Question        *PublicQuestion `json:"question"`
+}
