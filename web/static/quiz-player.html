@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Викторина — Игрок</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-1: #0B0F2A;
+    --bg-2: #1B1440;
+    --surface: #171233;
+    --surface-line: rgba(255,255,255,0.09);
+    --ink: #F3F1FF;
+    --muted: #9A9FC4;
+
+    --gold: #FFC857;
+    --violet: #8B7CFF;
+    --teal: #2FE6C1;
+    --rose: #FF5C8A;
+    --wrong: #FF4757;
+
+    --radius-lg: 22px;
+    --radius-md: 15px;
+    --ease: cubic-bezier(.22,1,.36,1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: var(--bg-1);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .aurora span { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .3; animation: drift 24s ease-in-out infinite alternate; }
+  .aurora span:nth-child(1) { width: 420px; height: 420px; background: var(--violet); top: -160px; left: -140px; }
+  .aurora span:nth-child(2) { width: 380px; height: 380px; background: var(--rose); bottom: -160px; right: -120px; animation-duration: 28s; animation-delay: -8s; }
+  @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,-30px) scale(1.1); } }
+
+  .screen { width: 100%; max-width: 440px; position: relative; z-index: 1; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--surface-line);
+    border-radius: var(--radius-lg);
+    padding: 26px;
+    box-shadow: 0 24px 50px -22px rgba(0,0,0,.55);
+    animation: rise .45s var(--ease) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  h1 { font-family: "Fredoka", sans-serif; font-size: 22px; font-weight: 600; margin: 0 0 20px; text-align: center; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  input {
+    width: 100%;
+    padding: 15px 16px;
+    font-size: 18px;
+    font-family: inherit;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-line);
+    background: rgba(255,255,255,0.04);
+    color: var(--ink);
+    margin-bottom: 16px;
+    text-align: center;
+    transition: border-color .2s var(--ease), background .2s var(--ease);
+  }
+  input:focus { outline: none; border-color: var(--gold); background: rgba(255,255,255,0.07); }
+
+  button {
+    width: 100%;
+    background: var(--gold);
+    color: #221200;
+    border: none;
+    padding: 17px;
+    font-size: 18px;
+    font-family: "Fredoka", sans-serif;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform .15s var(--ease), box-shadow .15s var(--ease), opacity .15s;
+    box-shadow: 0 8px 20px -8px rgba(255,200,87,0.55);
+  }
+  button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+  .error { color: var(--wrong); margin-top: 8px; font-size: 14px; text-align: center; }
+  .hidden { display: none !important; }
+
+  .center-hint { text-align: center; font-size: 17px; color: var(--muted); padding: 34px 0 20px; }
+  .loader { display: flex; justify-content: center; gap: 8px; margin-bottom: 4px; }
+  .loader span { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); animation: bounce 1.1s ease-in-out infinite; }
+  .loader span:nth-child(2) { animation-delay: .15s; } .loader span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-8px); opacity: 1; } }
+
+  .score-badge { text-align: center; font-size: 15px; color: var(--muted); margin-bottom: 18px; }
+  .score-badge b { font-family: "Fredoka", sans-serif; color: var(--gold); font-size: 18px; font-variant-numeric: tabular-nums; }
+
+  .timebar-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); margin-bottom: 20px; overflow: hidden; }
+  .timebar-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--gold)); border-radius: 999px; transition: width .9s linear, background .25s; }
+
+  .question-text { font-family: "Fredoka", sans-serif; font-size: 21px; font-weight: 600; line-height: 1.3; margin-bottom: 20px; text-align: center; animation: rise .4s var(--ease) both; }
+
+  .options { display: grid; gap: 12px; }
+  .option-btn {
+    display: flex; align-items: center; gap: 12px;
+    border: none;
+    padding: 18px 16px;
+    font-size: 17px;
+    font-family: inherit;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    text-align: left;
+    color: #17102a;
+    box-shadow: none;
+    transition: transform .12s var(--ease), filter .12s var(--ease), opacity .2s;
+    animation: pop .35s var(--ease) both;
+  }
+  .option-btn:nth-child(1) { background: var(--gold); }
+  .option-btn:nth-child(2) { background: var(--violet); color: #fff; }
+  .option-btn:nth-child(3) { background: var(--teal); }
+  .option-btn:nth-child(4) { background: var(--rose); color: #fff; }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .option-btn .idx {
+    width: 26px; height: 26px; flex-shrink: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 13px;
+  }
+  .option-btn:not(:disabled):active { transform: scale(.97); }
+  .option-btn:disabled { opacity: .35; }
+  .option-btn.chosen { opacity: 1; filter: brightness(1.12); outline: 3px solid rgba(255,255,255,0.6); }
+
+  .feedback { text-align: center; padding: 30px 0 10px; position: relative; }
+  .feedback-icon { width: 76px; height: 76px; margin: 0 auto 14px; }
+  .feedback-icon svg { width: 100%; height: 100%; }
+  .feedback-icon circle, .feedback-icon path {
+    stroke-dasharray: 100; stroke-dashoffset: 100;
+    animation: draw .5s var(--ease) forwards;
+  }
+  .feedback-icon path { animation-delay: .25s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .feedback.correct .feedback-icon circle, .feedback.correct .feedback-icon path { stroke: var(--teal); }
+  .feedback.wrong .feedback-icon circle, .feedback.wrong .feedback-icon path { stroke: var(--wrong); }
+  .feedback-title { font-family: "Fredoka", sans-serif; font-size: 26px; font-weight: 600; margin-bottom: 10px; }
+  .feedback.correct .feedback-title { color: var(--teal); }
+  .feedback.wrong .feedback-title { color: var(--wrong); }
+  .feedback-score { font-size: 16px; color: var(--muted); }
+  .feedback-score b { color: var(--gold); font-family: "Fredoka", sans-serif; }
+
+  .confetti { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  .confetti i {
+    position: absolute; top: 40%; left: 50%; width: 8px; height: 8px; border-radius: 2px;
+    animation: burst .9s var(--ease) forwards;
+  }
+  @keyframes burst {
+    to { transform: translate(var(--tx), var(--ty)) rotate(var(--tr)); opacity: 0; }
+  }
+
+  .finished-title { font-family: "Fredoka", sans-serif; font-size: 26px; font-weight: 600; text-align: center; margin-bottom: 6px; }
+  .finished-rank { text-align: center; color: var(--muted); font-size: 15px; margin-bottom: 18px; }
+  .final-score { text-align: center; font-family: "Fredoka", sans-serif; font-size: 44px; font-weight: 700; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<div class="aurora"><span></span><span></span></div>
+
+<div class="screen">
+
+  <!-- Экран 1: вход в комнату -->
+  <div class="card" id="join-screen">
+    <h1>Присоединиться к викторине</h1>
+    <label for="room-code-input">Код комнаты</label>
+    <input id="room-code-input" type="text" inputmode="numeric" placeholder="1234">
+    <label for="name-input">Твоё имя</label>
+    <input id="name-input" type="text" placeholder="Аня">
+    <button id="join-btn">Войти</button>
+    <div class="error hidden" id="join-error"></div>
+  </div>
+
+  <!-- Экран 2: ждём начала игры -->
+  <div class="card hidden" id="lobby-screen">
+    <div class="loader"><span></span><span></span><span></span></div>
+    <div class="center-hint">Ты в игре! Ждём, пока ведущий начнёт викторину...</div>
+  </div>
+
+  <!-- Экран 3: активный вопрос, ждём выбора -->
+  <div class="card hidden" id="question-screen">
+    <div class="score-badge">Твои очки: <b id="current-score">0</b></div>
+    <div class="timebar-track"><div class="timebar-fill" id="timebar-fill" style="width:100%"></div></div>
+    <div class="question-text" id="question-text"></div>
+    <div class="options" id="options"></div>
+  </div>
+
+  <!-- Экран 4: ответ отправлен, ждём следующего вопроса -->
+  <div class="card hidden" id="waiting-next-screen">
+    <div class="loader"><span></span><span></span><span></span></div>
+    <div class="center-hint" id="waiting-next-hint">Ответ принят! Ждём остальных...</div>
+  </div>
+
+  <!-- Экран 5: обратная связь после ответа -->
+  <div class="card hidden" id="feedback-screen">
+    <div class="feedback" id="feedback-content"></div>
+  </div>
+
+  <!-- Экран 6: игра окончена -->
+  <div class="card hidden" id="finished-screen">
+    <div class="finished-title">Игра окончена 🏁</div>
+    <div class="finished-rank" id="finished-rank"></div>
+    <div class="final-score" id="final-score">0</div>
+  </div>
+
+</div>
+
+<script>
+// ==== Настройки ====
+const API_BASE = "http://localhost:8080";
+const DEBUG = true; // сырой /state в консоли — помогает сверить имена полей с бэкендом
+
+// ==== Состояние приложения ====
+let roomCode = null;
+let playerId = null;
+let pollIntervalId = null;
+let lastSeenQuestionIndex = -1;
+let renderedQuestionIndex = -1; // чтобы не пересоздавать кнопки вариантов на каждый опрос /state
+let hasAnsweredCurrentQuestion = false;
+let myScore = 0;
+let roundDuration = null;
+
+// ==== Ссылки на экраны ====
+const screens = {
+  join: document.getElementById("join-screen"),
+  lobby: document.getElementById("lobby-screen"),
+  question: document.getElementById("question-screen"),
+  waitingNext: document.getElementById("waiting-next-screen"),
+  feedback: document.getElementById("feedback-screen"),
+  finished: document.getElementById("finished-screen"),
+};
+
+function showScreen(name) {
+  Object.values(screens).forEach(el => el.classList.add("hidden"));
+  screens[name].classList.remove("hidden");
+}
+
+// ==== Шаг 1: вход в комнату ====
+document.getElementById("join-btn").addEventListener("click", async () => {
+  const code = document.getElementById("room-code-input").value.trim();
+  const name = document.getElementById("name-input").value.trim();
+  const errorEl = document.getElementById("join-error");
+  errorEl.classList.add("hidden");
+
+  if (!code || !name) {
+    errorEl.textContent = "Заполни код комнаты и имя";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/rooms/${code}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Ошибка сервера: ${res.status}`);
+    }
+    const player = await res.json();
+    roomCode = code;
+    playerId = player.id;
+    showScreen("lobby");
+    startPolling();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove("hidden");
+  }
+});
+
+// ==== Опрос /state каждую секунду, реагируем на смену состояния ====
+function startPolling() {
+  pollIntervalId = setInterval(async () => {
+    const state = await fetchState();
+    if (!state) return;
+    if (DEBUG) console.debug("[quiz] /state →", state);
+    handleState(state);
+  }, 1000);
+}
+
+function handleState(state) {
+  if (state.status === "finished") {
+    clearInterval(pollIntervalId);
+    showFinalScreen(state);
+    return;
+  }
+
+  if (state.status === "waiting") {
+    showScreen("lobby");
+    return;
+  }
+
+  // status === "active"
+  if (state.question_index !== lastSeenQuestionIndex) {
+    lastSeenQuestionIndex = state.question_index;
+    hasAnsweredCurrentQuestion = false;
+    roundDuration = null;
+  }
+
+  const remaining = Number(state.time_remaining ?? 0);
+  if (roundDuration === null || remaining > roundDuration) roundDuration = Math.max(remaining, 1);
+  updateTimebar(remaining, roundDuration);
+
+  if (hasAnsweredCurrentQuestion) {
+    showScreen("waitingNext");
+    return;
+  }
+
+  document.getElementById("current-score").textContent = myScore;
+
+  if (state.question) {
+    // Раньше кнопки вариантов пересоздавались на каждый опрос /state (раз в
+    // секунду), из-за чего анимация появления проигрывалась заново — отсюда и
+    // "мигание". Теперь перерисовываем их только когда вопрос реально сменился.
+    if (state.question_index !== renderedQuestionIndex) {
+      renderedQuestionIndex = state.question_index;
+      renderQuestion(state.question);
+    }
+    showScreen("question");
+  }
+}
+
+function updateTimebar(remaining, total) {
+  const ratio = Math.max(0, Math.min(1, remaining / total));
+  const fill = document.getElementById("timebar-fill");
+  fill.style.width = `${ratio * 100}%`;
+  fill.style.background = ratio < 0.25
+    ? "var(--wrong)"
+    : "linear-gradient(90deg, var(--teal), var(--gold))";
+}
+
+function renderQuestion(question) {
+  document.getElementById("question-text").textContent = question.text;
+  const optionsEl = document.getElementById("options");
+  optionsEl.innerHTML = "";
+  question.options.forEach((optText, index) => {
+    const btn = document.createElement("button");
+    btn.className = "option-btn";
+    btn.style.animationDelay = `${index * 0.05}s`;
+    btn.innerHTML = `<span class="idx">${index + 1}</span><span>${escapeHtml(optText)}</span>`;
+    btn.addEventListener("click", () => submitAnswer(index, btn));
+    optionsEl.appendChild(btn);
+  });
+}
+
+// ==== Отправка ответа ====
+async function submitAnswer(optionIndex, chosenBtn) {
+  document.querySelectorAll(".option-btn").forEach(btn => (btn.disabled = true));
+  chosenBtn.classList.add("chosen");
+  hasAnsweredCurrentQuestion = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ player_id: playerId, option: optionIndex }),
+    });
+    if (!res.ok) {
+      showScreen("waitingNext");
+      return;
+    }
+    const result = await res.json();
+    const newScore = Number(result.new_score ?? result.score ?? myScore);
+    myScore = Number.isFinite(newScore) ? Math.max(myScore, newScore) : myScore;
+    showFeedback(result.correct);
+  } catch (err) {
+    console.error("Ошибка отправки ответа:", err);
+    showScreen("waitingNext");
+  }
+}
+
+function showFeedback(isCorrect) {
+  const content = document.getElementById("feedback-content");
+  const wrapper = content.parentElement;
+  wrapper.className = "feedback " + (isCorrect ? "correct" : "wrong");
+
+  const icon = isCorrect
+    ? `<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke-width="3"/><path fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M15 27l7 7 15-15"/></svg>`
+    : `<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke-width="3"/><path fill="none" stroke-width="3.5" stroke-linecap="round" d="M18 18l16 16M34 18L18 34"/></svg>`;
+
+  content.innerHTML = `
+    <div class="feedback-icon">${icon}</div>
+    <div class="feedback-title">${isCorrect ? "Верно!" : "Неверно"}</div>
+    <div class="feedback-score">Твои очки: <b>${myScore}</b></div>
+    ${isCorrect ? `<div class="confetti" id="confetti"></div>` : ""}
+  `;
+  showScreen("feedback");
+  if (isCorrect) launchConfetti();
+
+  setTimeout(() => { showScreen("waitingNext"); }, 2000);
+}
+
+function launchConfetti() {
+  const el = document.getElementById("confetti");
+  if (!el) return;
+  const colors = ["#FFC857", "#8B7CFF", "#2FE6C1", "#FF5C8A"];
+  for (let i = 0; i < 16; i++) {
+    const piece = document.createElement("i");
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 60 + Math.random() * 90;
+    piece.style.setProperty("--tx", `${Math.cos(angle) * dist}px`);
+    piece.style.setProperty("--ty", `${Math.sin(angle) * dist - 20}px`);
+    piece.style.setProperty("--tr", `${Math.random() * 360}deg`);
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDelay = `${Math.random() * 0.1}s`;
+    el.appendChild(piece);
+  }
+}
+
+// ==== Финальный экран: считаем свой ранг по последнему известному state ====
+function showFinalScreen(state) {
+  document.getElementById("final-score").textContent = myScore;
+  const rankEl = document.getElementById("finished-rank");
+
+  const players = Object.entries(state.players || {})
+    .map(([id, p]) => ({ id, score: Number(p.score ?? p.points ?? p.total_score ?? 0) }))
+    .sort((a, b) => b.score - a.score);
+
+  const myIndex = players.findIndex(p => p.id === playerId);
+  rankEl.textContent = myIndex >= 0
+    ? `Ты на ${myIndex + 1}-м месте из ${players.length}`
+    : "";
+
+  showScreen("finished");
+}
+
+// ==== Вспомогательное: запрос состояния комнаты ====
+async function fetchState() {
+  try {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/state`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error("Ошибка опроса /state:", err);
+    return null;
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
