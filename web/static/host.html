@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Викторина — Ведущий</title>
+<style>
+  :root {
+    --bg: #14213D;
+    --card: #1F2E52;
+    --accent: #FCA311;
+    --text: #E9ECF5;
+    --muted: #8B96B8;
+    --correct: #06D6A0;
+    --wrong: #EF476F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .screen { width: 100%; max-width: 900px; }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 40px;
+  }
+  h1 { font-size: 28px; margin: 0 0 24px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  input {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 16px;
+    border-radius: 10px;
+    border: 1px solid #33447A;
+    background: #0F1830;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  button {
+    background: var(--accent);
+    color: #14213D;
+    border: none;
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .error { color: var(--wrong); margin-top: 8px; font-size: 14px; }
+
+  .room-code-label { color: var(--muted); font-size: 16px; margin-bottom: 8px; }
+  .room-code {
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    color: var(--accent);
+    text-align: center;
+    margin: 16px 0 32px;
+  }
+  .waiting-hint { text-align: center; color: var(--muted); font-size: 18px; }
+
+  .timer {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: right;
+    margin-bottom: 12px;
+  }
+  .question-text { font-size: 32px; font-weight: 700; margin-bottom: 24px; }
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .option {
+    background: #0F1830;
+    border: 1px solid #33447A;
+    border-radius: 12px;
+    padding: 20px;
+    font-size: 18px;
+  }
+  .leaderboard { margin-top: 24px; }
+  .leaderboard h2 { font-size: 18px; color: var(--muted); margin-bottom: 12px; }
+  .player-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #0F1830;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 18px;
+  }
+  .player-score { color: var(--accent); font-weight: 700; }
+  .finished-title { font-size: 40px; text-align: center; margin-bottom: 32px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <!-- Экран 1: создание комнаты -->
+  <div class="card" id="setup-screen">
+    <h1>Создать викторину</h1>
+    <label for="quiz-id">ID викторины (получен после создания через POST /quiz)</label>
+    <input id="quiz-id" type="text" placeholder="например 1790538473">
+    <button id="create-room-btn">Создать комнату</button>
+    <div class="error hidden" id="setup-error"></div>
+  </div>
+
+  <!-- Экран 2: комната ждёт игроков -->
+  <div class="card hidden" id="waiting-screen">
+    <div class="room-code-label">Код комнаты — вводите на телефонах:</div>
+    <div class="room-code" id="room-code-display">----</div>
+    <div class="waiting-hint" id="waiting-hint">Ждём игроков...</div>
+    <div class="leaderboard">
+      <h2>Присоединились</h2>
+      <div id="waiting-players"></div>
+    </div>
+    <button id="start-btn" style="margin-top: 24px;">Начать викторину</button>
+  </div>
+
+  <!-- Экран 3: активный вопрос -->
+  <div class="card hidden" id="game-screen">
+    <div class="timer" id="timer">15с</div>
+    <div class="question-text" id="question-text"></div>
+    <div class="options" id="options"></div>
+    <div class="leaderboard">
+      <h2>Таблица лидеров</h2>
+      <div id="players-list"></div>
+    </div>
+    <button id="next-btn" style="margin-top: 24px;">Следующий вопрос</button>
+  </div>
+
+  <!-- Экран 4: игра окончена -->
+  <div class="card hidden" id="finished-screen">
+    <div class="finished-title">🏆 Игра окончена!</div>
+    <div class="leaderboard">
+      <h2>Финальные результаты</h2>
+      <div id="final-players"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ==== Настройки ====
+const API_BASE = "http://localhost:8080";
+
+// ==== Состояние приложения ====
+let roomCode = null;
+let pollIntervalId = null;
+
+// ==== Ссылки на элементы экрана ====
+const screens = {
+  setup: document.getElementById("setup-screen"),
+  waiting: document.getElementById("waiting-screen"),
+  game: document.getElementById("game-screen"),
+  finished: document.getElementById("finished-screen"),
+};
+
+function showScreen(name) {
+  Object.values(screens).forEach(el => el.classList.add("hidden"));
+  screens[name].classList.remove("hidden");
+}
+
+// ==== Шаг 1: создание комнаты ====
+document.getElementById("create-room-btn").addEventListener("click", async () => {
+  const quizId = document.getElementById("quiz-id").value.trim();
+  const errorEl = document.getElementById("setup-error");
+  errorEl.classList.add("hidden");
+
+  if (!quizId) {
+    errorEl.textContent = "Введи ID викторины";
+    errorEl.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/rooms`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quiz_id: quizId }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Ошибка сервера: ${res.status}`);
+    }
+    const room = await res.json();
+    roomCode = room.room_id;
+    document.getElementById("room-code-display").textContent = roomCode;
+    showScreen("waiting");
+    startPollingWaitingRoom();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove("hidden");
+  }
+});
+
+// ==== Шаг 2: пока ждём игроков — опрашиваем /state, чтобы обновлять список игроков ====
+function startPollingWaitingRoom() {
+  pollIntervalId = setInterval(async () => {
+    const state = await fetchState();
+    if (!state) return;
+    renderWaitingPlayers(state.players);
+  }, 1000);
+}
+
+function renderWaitingPlayers(playersMap) {
+  const container = document.getElementById("waiting-players");
+  const players = Object.values(playersMap || {});
+  if (players.length === 0) {
+    container.innerHTML = `<div class="waiting-hint">Пока никто не зашёл</div>`;
+    return;
+  }
+  container.innerHTML = players
+    .map(p => `<div class="player-row"><span>${escapeHtml(p.name)}</span></div>`)
+    .join("");
+}
+
+// ==== Шаг 3: запуск игры (нажатие "Начать викторину") ====
+document.getElementById("start-btn").addEventListener("click", async () => {
+  clearInterval(pollIntervalId);
+  await callNext();
+  showScreen("game");
+  startPollingGame();
+});
+
+// ==== Шаг 4: нажатие "Следующий вопрос" ====
+document.getElementById("next-btn").addEventListener("click", async () => {
+  const nextBtn = document.getElementById("next-btn");
+  nextBtn.disabled = true;
+  const result = await callNext();
+  nextBtn.disabled = false;
+  if (result && result.status === "finished") {
+    clearInterval(pollIntervalId);
+    showFinished();
+  }
+});
+
+async function callNext() {
+  const res = await fetch(`${API_BASE}/rooms/${roomCode}/next`, { method: "POST" });
+  if (!res.ok) {
+    console.error("Ошибка /next:", await res.text());
+    return null;
+  }
+  return res.json();
+}
+
+// ==== Шаг 5: во время игры — опрашиваем /state каждую секунду ====
+function startPollingGame() {
+  pollIntervalId = setInterval(async () => {
+    const state = await fetchState();
+    if (!state) return;
+    if (state.status === "finished") {
+      clearInterval(pollIntervalId);
+      showFinished();
+      return;
+    }
+    renderGameState(state);
+  }, 1000);
+}
+
+function renderGameState(state) {
+  document.getElementById("timer").textContent = `${state.time_remaining}с`;
+
+  if (state.question) {
+    document.getElementById("question-text").textContent = state.question.text;
+    const optionsEl = document.getElementById("options");
+    optionsEl.innerHTML = state.question.options
+      .map(opt => `<div class="option">${escapeHtml(opt)}</div>`)
+      .join("");
+  }
+
+  renderLeaderboard(state.players, "players-list");
+}
+
+function renderLeaderboard(playersMap, containerId) {
+  const container = document.getElementById(containerId);
+  const players = Object.values(playersMap || {}).sort((a, b) => b.score - a.score);
+  container.innerHTML = players
+    .map(p => `
+      <div class="player-row">
+        <span>${escapeHtml(p.name)}</span>
+        <span class="player-score">${p.score}</span>
+      </div>
+    `)
+    .join("");
+}
+
+// ==== Шаг 6: экран окончания игры ====
+async function showFinished() {
+  const state = await fetchState();
+  if (state) renderLeaderboard(state.players, "final-players");
+  showScreen("finished");
+}
+
+// ==== Вспомогательное: запрос состояния комнаты ====
+async function fetchState() {
+  try {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/state`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error("Ошибка опроса /state:", err);
+    return null;
+  }
+}
+
+// ==== Вспомогательное: защита от XSS при вставке имён игроков в HTML ====
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
