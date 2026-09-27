@@ -57,7 +57,7 @@ func (rh *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if room.Status != "waiting" {
-		http.Error(w, "quiz started", http.StatusConflict)
+		http.Error(w, "entry closed", http.StatusConflict)
 		return
 	}
 	playerID := time.Now().Unix()
@@ -74,4 +74,45 @@ func (rh *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(player)
+}
+
+func (rh *RoomHandler) NextQuestion(w http.ResponseWriter, r *http.Request) {
+	roomID := r.PathValue("code")
+	room, err := rh.storage.GetRoom(roomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if room.Status == "finished" {
+		http.Error(w, "game over", http.StatusConflict)
+		return
+	}
+	quiz, err := rh.storage.GetQuiz(room.QuizID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	room.CurrentQuestion++
+	var publicQuestion *models.PublicQuestion
+	if room.CurrentQuestion >= len(quiz.Questions) {
+		room.Status = "finished"
+	} else {
+		room.Status = "active"
+		room.StartTime = time.Now().Unix()
+		publicQuestion = &models.PublicQuestion{
+			Text:    quiz.Questions[room.CurrentQuestion].Text,
+			Options: quiz.Questions[room.CurrentQuestion].Options,
+		}
+	}
+	if err = rh.storage.UpdateRoom(room); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	nextQuestion := models.NextQuestionResponse{
+		Status:          room.Status,
+		CurrentQuestion: room.CurrentQuestion,
+		Question:        publicQuestion,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(nextQuestion)
 }
