@@ -61,3 +61,10 @@ type AnswerResponse struct {
 	Correct  bool `json:"correct"`
 	NewScore int  `json:"new_score"`
 }
+
+type RoomStateResponse struct {
+	Status        string             `json:"status"`
+	Question      *PublicQuestion    `json:"question,omitempty"`
+	TimeRemaining int64              `json:"time_remaining"`
+	Players       map[string]*Player `json:"players"`
+}
