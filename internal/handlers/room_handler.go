@@ -116,3 +116,40 @@ func (rh *RoomHandler) NextQuestion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(nextQuestion)
 }
+
+func (rh *RoomHandler) GetState(w http.ResponseWriter, r *http.Request) {
+	roomID := r.PathValue("code")
+	room, err := rh.storage.GetRoom(roomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	quiz, err := rh.storage.GetQuiz(room.QuizID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	elapsed := time.Now().Unix() - room.StartTime
+	var timeRemaining int64
+	var publicQuestion *models.PublicQuestion
+	if -1 < room.CurrentQuestion && room.CurrentQuestion < len(quiz.Questions) {
+		publicQuestion = &models.PublicQuestion{
+			Text:    quiz.Questions[room.CurrentQuestion].Text,
+			Options: quiz.Questions[room.CurrentQuestion].Options,
+		}
+		timeRemaining = int64(quiz.Questions[room.CurrentQuestion].TimeLimit) - elapsed
+	} else {
+		timeRemaining = 0
+	}
+	if timeRemaining < 0 {
+		timeRemaining = 0
+	}
+	roomStateResponse := models.RoomStateResponse{
+		Status:        room.Status,
+		Question:      publicQuestion,
+		TimeRemaining: timeRemaining,
+		Players:       room.Players,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(roomStateResponse)
+}
