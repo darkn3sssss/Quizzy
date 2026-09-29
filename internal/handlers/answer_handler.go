@@ -46,6 +46,9 @@ func (ah *AnswerHandler) AnswerOnQusetion(w http.ResponseWriter, r *http.Request
 		if answer.PlayerID == answerRequest.PlayerID {
 			http.Error(w, "player answered", http.StatusConflict)
 			return
+		} else if answerRequest.TimeRemaining <= 0 {
+			http.Error(w, "time's up", http.StatusConflict)
+			return
 		}
 	}
 	answeredAt := time.Now().UnixNano()

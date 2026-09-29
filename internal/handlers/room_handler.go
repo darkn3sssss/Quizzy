@@ -98,7 +98,7 @@ func (rh *RoomHandler) NextQuestion(w http.ResponseWriter, r *http.Request) {
 		room.Status = "finished"
 	} else {
 		room.Status = "active"
-		room.StartTime = time.Now().UnixNano()
+		room.StartTime = time.Now().Unix()
 		publicQuestion = &models.PublicQuestion{
 			Text:    quiz.Questions[room.CurrentQuestion].Text,
 			Options: quiz.Questions[room.CurrentQuestion].Options,
@@ -129,7 +129,7 @@ func (rh *RoomHandler) GetState(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	elapsed := time.Now().UnixNano() - room.StartTime
+	elapsed := time.Now().Unix() - room.StartTime
 	var timeRemaining int64
 	var publicQuestion *models.PublicQuestion
 	if -1 < room.CurrentQuestion && room.CurrentQuestion < len(quiz.Questions) {
