@@ -5,6 +5,7 @@ import "quizzy/internal/models"
 type Storage interface {
 	CreateQuiz(q models.Quiz) error
 	GetQuiz(id string) (models.Quiz, error)
+	ListQuizzes() ([]models.Quiz, error)
 	CreateRoom(r models.Room) error
 	GetRoom(id string) (models.Room, error)
 	UpdateRoom(r models.Room) error

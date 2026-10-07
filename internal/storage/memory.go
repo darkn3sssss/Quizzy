@@ -32,6 +32,14 @@ func (memS MemoryStorage) GetQuiz(id string) (models.Quiz, error) {
 	return *memS.quizzes[id], nil
 }
 
+func (memS MemoryStorage) ListQuizzes() ([]models.Quiz, error) {
+	listQuizzes := []models.Quiz{}
+	for _, quiz := range memS.quizzes {
+		listQuizzes = append(listQuizzes, *quiz)
+	}
+	return listQuizzes, nil
+}
+
 func (memS MemoryStorage) CreateRoom(r models.Room) error {
 	if _, ok := memS.rooms[r.RoomID]; ok {
 		return errors.New("room with this id exist")
