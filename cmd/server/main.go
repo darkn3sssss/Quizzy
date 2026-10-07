@@ -24,6 +24,7 @@ func main() {
 	})
 	mux.HandleFunc("GET /quiz/{id}", quizHandler.GetQuiz)
 	mux.HandleFunc("GET /rooms/{code}/state", roomHandler.GetState)
+	mux.HandleFunc("GET /quizzes", quizHandler.ListQuizzes)
 	mux.HandleFunc("POST /quiz", quizHandler.PostQuiz)
 	mux.HandleFunc("POST /rooms", roomHandler.CreateRoom)
 	mux.HandleFunc("POST /rooms/{code}/join", roomHandler.JoinRoom)
