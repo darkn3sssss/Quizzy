@@ -372,7 +372,7 @@ async function submitAnswer(optionIndex, chosenBtn) {
     const res = await fetch(`${API_BASE}/rooms/${roomCode}/answer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ player_id: playerId, option: optionIndex }),
+      body: JSON.stringify({ player_id: playerId, option: optionIndex}),
     });
     if (!res.ok) {
       showScreen("waitingNext");

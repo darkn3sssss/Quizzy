@@ -222,6 +222,52 @@
   .podium-slot.p1 { order: 2; } .podium-slot.p2 { order: 1; } .podium-slot.p3 { order: 3; }
 
   .rest-list { max-width: 520px; margin: 0 auto; }
+
+  /* --- библиотека квизов --- */
+  .lib-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+  .lib-head h1 { margin: 0; }
+  button.ghost { background: rgba(255,255,255,0.07); color: var(--ink); border: 1px solid var(--surface-line); box-shadow: none; }
+  button.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.12); box-shadow: none; }
+  button.small { padding: 9px 16px; font-size: 14px; }
+
+  .quiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .quiz-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--surface-line);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    animation: pop .35s var(--ease) both;
+    transition: border-color .2s var(--ease), transform .2s var(--ease);
+  }
+  .quiz-card:hover { border-color: rgba(255,200,87,0.5); transform: translateY(-2px); }
+  .quiz-card.fresh { border-color: var(--teal); }
+  .quiz-title { font-family: "Fredoka", sans-serif; font-size: 20px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+  .quiz-meta { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .quiz-card button { margin-top: auto; }
+  .empty-note { color: var(--muted); text-align: center; padding: 34px 0; grid-column: 1 / -1; }
+
+  /* --- редактор квиза --- */
+  .q-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--surface-line);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 16px;
+    animation: pop .3s var(--ease) both;
+  }
+  .q-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .q-num { font-family: "Fredoka", sans-serif; font-weight: 600; flex: 1; }
+  .time-field { display: flex; align-items: center; gap: 8px; margin: 0; }
+  .time-field input { width: 76px; margin: 0; padding: 8px 10px; text-align: center; }
+  .q-card input[type="text"] { margin-bottom: 12px; }
+  .opt-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .opt-row input[type="text"] { margin: 0; flex: 1; }
+  .opt-row input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--teal); flex-shrink: 0; cursor: pointer; }
+  .opt-hint { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+  .editor-actions { display: flex; gap: 12px; justify-content: space-between; margin-top: 22px; flex-wrap: wrap; }
+  .editor-actions .right { display: flex; gap: 12px; }
+  .lib-note { color: var(--teal); font-size: 14px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -231,12 +277,30 @@
 <div class="screen">
 
   <!-- Экран 1: создание комнаты -->
-  <div class="card" id="setup-screen">
-    <h1>Создать викторину</h1>
-    <label for="quiz-id">ID викторины (получен после создания через POST /quiz)</label>
-    <input id="quiz-id" type="text" placeholder="например 1790538473">
-    <button id="create-room-btn">Создать комнату</button>
-    <div class="error hidden" id="setup-error"></div>
+  <div class="card" id="library-screen">
+    <div class="lib-head">
+      <h1>Мои викторины</h1>
+      <button id="new-quiz-btn">+ Создать квиз</button>
+    </div>
+    <div class="lib-note hidden" id="library-note"></div>
+    <div class="quiz-grid" id="quiz-grid"></div>
+    <div class="error hidden" id="library-error"></div>
+  </div>
+
+  <!-- Экран 1б: редактор квиза -->
+  <div class="card hidden" id="editor-screen">
+    <h1>Новый квиз</h1>
+    <label for="quiz-title">Название</label>
+    <input id="quiz-title" type="text" placeholder="Например: Столицы мира" maxlength="80">
+    <div id="editor-questions"></div>
+    <div class="editor-actions">
+      <button class="ghost" id="add-question-btn">+ Добавить вопрос</button>
+      <div class="right">
+        <button class="ghost" id="editor-cancel-btn">Отмена</button>
+        <button id="editor-save-btn">Сохранить квиз</button>
+      </div>
+    </div>
+    <div class="error hidden" id="editor-error"></div>
   </div>
 
   <!-- Экран 2: комната ждёт игроков -->
@@ -288,21 +352,32 @@
 </div>
 
 <script>
-
+// ==== Настройки ====
+// Раньше был жёстко забит "http://localhost:8080" — это работает только на
+// компьютере ведущего, а с телефонов "localhost" означает сам телефон, а не
+// сервер. Теперь бэкенд ищется на том же хосте, с которого открыта сама
+// страница (если открыть её как файл — хост пустой, тогда используем localhost
+// для локальной разработки).
 const API_BASE = `http://${location.hostname || "localhost"}:8080`;
-const DEBUG = true; 
+const DEBUG = true; // выведет в консоль сырой /state — удобно, чтобы сверить имена полей с бэкендом
 
 // ==== Состояние приложения ====
 let roomCode = null;
 let pollIntervalId = null;
 let questionStartedAt = null;
-let roundDuration = null; 
+let roundDuration = null; // сколько секунд длится раунд — определяем динамически по первому значению
 
+// Защита от бага с обнулением очков: /state иногда может вернуть на секунду
+// устаревший/нулевой счёт (например, если бэкенд ещё не успел применить ответ,
+// либо каждый раз пересобирает players и теряет накопленный score).
+// Раз счёт в этой игре может только расти, храним максимум из всего, что видели —
+// это не чинит бэкенд, но не даёт интерфейсу "моргать" нулём.
 let knownScores = {};
 
 // ==== Ссылки на элементы экрана ====
 const screens = {
-  setup: document.getElementById("setup-screen"),
+  library: document.getElementById("library-screen"),
+  editor: document.getElementById("editor-screen"),
   waiting: document.getElementById("waiting-screen"),
   game: document.getElementById("game-screen"),
   finished: document.getElementById("finished-screen"),
@@ -313,23 +388,75 @@ function showScreen(name) {
   screens[name].classList.remove("hidden");
 }
 
-// ==== Шаг 1: создание комнаты ====
-document.getElementById("create-room-btn").addEventListener("click", async () => {
-  const quizId = document.getElementById("quiz-id").value.trim();
-  const errorEl = document.getElementById("setup-error");
-  errorEl.classList.add("hidden");
+// ==== Шаг 0: библиотека квизов ====
+const libraryErrorEl = document.getElementById("library-error");
 
-  if (!quizId) {
-    errorEl.textContent = "Введи ID викторины";
-    errorEl.classList.remove("hidden");
+function showLibraryError(msg) {
+  libraryErrorEl.textContent = msg;
+  libraryErrorEl.classList.toggle("hidden", !msg);
+}
+
+async function loadQuizzes(freshId = null) {
+  const grid = document.getElementById("quiz-grid");
+  showLibraryError("");
+  try {
+    const res = await fetch(`${API_BASE}/quizzes`);
+    if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
+    const data = await res.json();
+    // бэкенд может вернуть массив или объект вида { quizzes: [...] }
+    const quizzes = Array.isArray(data) ? data : (data.quizzes || []);
+    renderQuizzes(quizzes, freshId);
+  } catch (err) {
+    grid.innerHTML = "";
+    showLibraryError("Не удалось загрузить список квизов. Запущен ли сервер? (" + err.message + ")");
+  }
+}
+
+function pluralQuestions(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} вопрос`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} вопроса`;
+  return `${n} вопросов`;
+}
+
+function renderQuizzes(quizzes, freshId) {
+  const grid = document.getElementById("quiz-grid");
+  grid.innerHTML = "";
+  if (!quizzes.length) {
+    grid.innerHTML = `<div class="empty-note">Пока нет ни одного квиза — создайте первый.</div>`;
     return;
   }
+  quizzes.forEach((quiz, i) => {
+    const card = document.createElement("div");
+    card.className = "quiz-card" + (quiz.id === freshId ? " fresh" : "");
+    card.style.animationDelay = `${i * 0.04}s`;
 
+    const title = document.createElement("div");
+    title.className = "quiz-title";
+    title.textContent = quiz.title || "Без названия";
+
+    const meta = document.createElement("div");
+    meta.className = "quiz-meta";
+    meta.textContent = Array.isArray(quiz.questions) ? pluralQuestions(quiz.questions.length) : "";
+
+    const btn = document.createElement("button");
+    btn.textContent = "Запустить";
+    btn.addEventListener("click", () => startRoom(quiz.id, btn));
+
+    card.append(title, meta, btn);
+    grid.appendChild(card);
+  });
+}
+
+// ==== Шаг 1: создание комнаты из карточки квиза ====
+async function startRoom(quizId, btn) {
+  showLibraryError("");
+  btn.disabled = true;
   try {
     const res = await fetch(`${API_BASE}/rooms`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quiz_id: quizId }),
+      body: JSON.stringify({ quiz_id: String(quizId) }),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -341,8 +468,179 @@ document.getElementById("create-room-btn").addEventListener("click", async () =>
     showScreen("waiting");
     startPollingWaitingRoom();
   } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.classList.remove("hidden");
+    showLibraryError(err.message);
+    btn.disabled = false;
+  }
+}
+
+// ==== Редактор квиза ====
+const MAX_OPTIONS = 4; // столько цветов у плиток ответов
+const MIN_OPTIONS = 2;
+let editorQuestions = [];
+
+function newQuestion() {
+  return { text: "", options: ["", ""], correct: 0, time: 15 };
+}
+
+document.getElementById("new-quiz-btn").addEventListener("click", () => {
+  document.getElementById("quiz-title").value = "";
+  editorQuestions = [newQuestion()];
+  document.getElementById("library-note").classList.add("hidden");
+  setEditorError("");
+  renderEditor();
+  showScreen("editor");
+});
+
+document.getElementById("add-question-btn").addEventListener("click", () => {
+  editorQuestions.push(newQuestion());
+  renderEditor();
+  const cards = document.querySelectorAll(".q-card");
+  cards[cards.length - 1].scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+document.getElementById("editor-cancel-btn").addEventListener("click", () => showScreen("library"));
+
+function setEditorError(msg) {
+  const el = document.getElementById("editor-error");
+  el.textContent = msg;
+  el.classList.toggle("hidden", !msg);
+}
+
+// Поля ввода пишут прямо в модель editorQuestions (без перерисовки, чтобы не терять фокус);
+// полная перерисовка — только когда меняется структура (добавили/удалили вопрос или вариант).
+function renderEditor() {
+  const box = document.getElementById("editor-questions");
+  box.innerHTML = "";
+
+  editorQuestions.forEach((q, qi) => {
+    const card = document.createElement("div");
+    card.className = "q-card";
+
+    const head = document.createElement("div");
+    head.className = "q-head";
+    head.innerHTML = `<span class="q-num">Вопрос ${qi + 1}</span>
+      <label class="time-field">Время, с <input type="number" min="5" max="300"></label>`;
+    const timeInput = head.querySelector("input");
+    timeInput.value = q.time;
+    timeInput.addEventListener("input", () => { q.time = Number(timeInput.value); });
+    if (editorQuestions.length > 1) {
+      const del = document.createElement("button");
+      del.className = "ghost small";
+      del.textContent = "Удалить";
+      del.addEventListener("click", () => { editorQuestions.splice(qi, 1); renderEditor(); });
+      head.appendChild(del);
+    }
+    card.appendChild(head);
+
+    const text = document.createElement("input");
+    text.type = "text";
+    text.placeholder = "Текст вопроса";
+    text.value = q.text;
+    text.addEventListener("input", () => { q.text = text.value; });
+    card.appendChild(text);
+
+    const hint = document.createElement("div");
+    hint.className = "opt-hint";
+    hint.textContent = "Отметьте кружком правильный вариант";
+    card.appendChild(hint);
+
+    q.options.forEach((opt, oi) => {
+      const row = document.createElement("div");
+      row.className = "opt-row";
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = `correct-${qi}`;
+      radio.checked = q.correct === oi;
+      radio.addEventListener("change", () => { q.correct = oi; });
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = `Вариант ${oi + 1}`;
+      input.value = opt;
+      input.addEventListener("input", () => { q.options[oi] = input.value; });
+
+      row.append(radio, input);
+
+      if (q.options.length > MIN_OPTIONS) {
+        const rm = document.createElement("button");
+        rm.className = "ghost small";
+        rm.textContent = "✕";
+        rm.title = "Убрать вариант";
+        rm.addEventListener("click", () => {
+          q.options.splice(oi, 1);
+          if (q.correct === oi) q.correct = 0;
+          else if (q.correct > oi) q.correct -= 1;
+          renderEditor();
+        });
+        row.appendChild(rm);
+      }
+      card.appendChild(row);
+    });
+
+    if (q.options.length < MAX_OPTIONS) {
+      const add = document.createElement("button");
+      add.className = "ghost small";
+      add.textContent = "+ Вариант";
+      add.addEventListener("click", () => { q.options.push(""); renderEditor(); });
+      card.appendChild(add);
+    }
+
+    box.appendChild(card);
+  });
+}
+
+function validateQuiz() {
+  const title = document.getElementById("quiz-title").value.trim();
+  if (!title) return "Введите название квиза";
+  for (let i = 0; i < editorQuestions.length; i++) {
+    const q = editorQuestions[i];
+    const n = i + 1;
+    if (!q.text.trim()) return `Вопрос ${n}: введите текст вопроса`;
+    if (q.options.some(o => !o.trim())) return `Вопрос ${n}: заполните все варианты ответа (или уберите лишние)`;
+    if (!Number.isFinite(q.time) || q.time < 5 || q.time > 300) return `Вопрос ${n}: время должно быть от 5 до 300 секунд`;
+  }
+  return null;
+}
+
+document.getElementById("editor-save-btn").addEventListener("click", async () => {
+  const problem = validateQuiz();
+  if (problem) { setEditorError(problem); return; }
+  setEditorError("");
+
+  const payload = {
+    title: document.getElementById("quiz-title").value.trim(),
+    questions: editorQuestions.map((q, i) => ({
+      id: `q${i + 1}`,
+      text: q.text.trim(),
+      options: q.options.map(o => o.trim()),
+      correct_option: q.correct,
+      time_limit: q.time,
+    })),
+  };
+
+  const saveBtn = document.getElementById("editor-save-btn");
+  saveBtn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/quiz`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Ошибка сервера: ${res.status}`);
+    }
+    const created = await res.json().catch(() => ({}));
+    const note = document.getElementById("library-note");
+    note.textContent = `Квиз «${payload.title}» сохранён`;
+    note.classList.remove("hidden");
+    showScreen("library");
+    await loadQuizzes(created && created.id ? String(created.id) : null);
+  } catch (err) {
+    setEditorError(err.message);
+  } finally {
+    saveBtn.disabled = false;
   }
 });
 
@@ -355,14 +653,32 @@ function startPollingWaitingRoom() {
   }, 1000);
 }
 
+const lobbyChipRefs = {}; // playerId -> DOM-элемент
+
 function renderWaitingPlayers(playersMap) {
   const container = document.getElementById("waiting-players");
   const hint = document.getElementById("waiting-hint-text");
   const players = Object.values(playersMap || {});
   hint.textContent = players.length ? `Игроков в комнате: ${players.length}` : "Ждём игроков...";
-  container.innerHTML = players
-    .map(p => `<div class="chip">${escapeHtml(p.name)}</div>`)
-    .join("");
+
+  const currentIds = players.map(p => p.id);
+  Object.keys(lobbyChipRefs).forEach(id => {
+    if (!currentIds.includes(id)) {
+      lobbyChipRefs[id].remove();
+      delete lobbyChipRefs[id];
+    }
+  });
+
+  // добавляем только новых игроков, существующих не трогаем
+  players.forEach(p => {
+    if (!lobbyChipRefs[p.id]) {
+      const chip = document.createElement("div");
+      chip.className = "chip";
+      chip.textContent = p.name;
+      lobbyChipRefs[p.id] = chip;
+      container.appendChild(chip);
+    }
+  });
 }
 
 // ==== Шаг 3: запуск игры (нажатие "Начать викторину") ====
@@ -580,6 +896,9 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// ==== Старт: сразу показываем список квизов ====
+loadQuizzes();
 </script>
 </body>
 </html>
