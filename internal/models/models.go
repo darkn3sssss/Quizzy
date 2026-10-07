@@ -42,9 +42,8 @@ type JoinRequest struct {
 }
 
 type AnswerRequest struct {
-	PlayerID      string `json:"player_id"`
-	Option        int    `json:"option"`
-	TimeRemaining int    `json:"time_remaining"`
+	PlayerID string `json:"player_id"`
+	Option   int    `json:"option"`
 }
 
 type PublicQuestion struct {
