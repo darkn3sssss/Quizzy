@@ -28,6 +28,12 @@ func (qh *QuizHandler) GetQuiz(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(quiz)
 }
 
+func (qh *QuizHandler) ListQuizzes(w http.ResponseWriter, r *http.Request) {
+	listQuizzes, _ := qh.storage.ListQuizzes()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(listQuizzes)
+}
+
 func (qh *QuizHandler) PostQuiz(w http.ResponseWriter, r *http.Request) {
 	var quiz models.Quiz
 	if err := json.NewDecoder(r.Body).Decode(&quiz); err != nil {

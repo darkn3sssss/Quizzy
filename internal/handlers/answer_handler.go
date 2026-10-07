@@ -46,12 +46,15 @@ func (ah *AnswerHandler) AnswerOnQusetion(w http.ResponseWriter, r *http.Request
 		if answer.PlayerID == answerRequest.PlayerID {
 			http.Error(w, "player answered", http.StatusConflict)
 			return
-		} else if answerRequest.TimeRemaining <= 0 {
-			http.Error(w, "time's up", http.StatusConflict)
-			return
 		}
 	}
-	answeredAt := time.Now().UnixNano()
+	elapsed := time.Now().Unix() - room.StartTime
+	timeLimit := int64(quiz.Questions[room.CurrentQuestion].TimeLimit)
+	if elapsed > timeLimit {
+		http.Error(w, "time's up", http.StatusConflict)
+		return
+	}
+	answeredAt := time.Now().Unix()
 	newAnswer := models.Answer{
 		PlayerID:   answerRequest.PlayerID,
 		QuestionID: currentIDQuestion,
