@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"quizzy/internal/handlers"
 	"quizzy/internal/storage"
+	"sync"
 )
 
 type HealthStatus struct {
@@ -14,6 +15,7 @@ type HealthStatus struct {
 
 func main() {
 	memory := storage.InitMemStorage()
+	memory.Mu = &sync.RWMutex{}
 	quizHandler := handlers.NewQuizHandler(memory)
 	roomHandler := handlers.NewRoomHandler(memory)
 	answerHandler := handlers.NewAnswerHandler(memory)
