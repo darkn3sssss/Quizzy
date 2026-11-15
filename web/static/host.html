@@ -6,7 +6,7 @@
 <title>Викторина — Ведущий</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-1: #0B0F2A;
@@ -275,8 +275,11 @@
   @media (max-width: 560px) { body { padding: 16px; } .card { padding: 24px; } .lib-head { flex-wrap: wrap; } }
 </style>
 <link rel="stylesheet" href="menu.css">
+<link rel="stylesheet" href="theme.css">
+<meta name="theme-color" content="#292a2c">
 </head>
 <body>
+<header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Пространство ведущего</span></header>
 
 <div class="aurora"><span></span><span></span><span></span></div>
 
@@ -336,7 +339,7 @@
   <!-- Экран 4: игра окончена -->
   <div class="card finished-screen hidden" id="finished-screen">
     <a class="menu-close" href="/" aria-label="Вернуться в главное меню" title="В главное меню">&times;</a>
-    <div class="finished-title">Игра окончена 🏆</div>
+    <div class="finished-title">Игра окончена</div>
     <div class="finished-sub">Финальные результаты</div>
     <div class="podium" id="podium"></div>
     <div class="rest-list board-list" id="rest-players"></div>
@@ -362,8 +365,7 @@ const screens = {
 };
 
 function showScreen(name) {
-  Object.values(screens).forEach(el => el.classList.add("hidden"));
-  screens[name].classList.remove("hidden");
+  Object.entries(screens).forEach(([key, el]) => el.classList.toggle("hidden", key !== name));
 }
 
 // ==== Шаг 0: библиотека квизов ====
@@ -802,7 +804,7 @@ function renderPodium(top3) {
       <div class="podium-slot ${labels[i]}">
         <div class="podium-name">${escapeHtml(p.name)}</div>
         <div class="podium-score">${p.score}</div>
-        <div class="podium-block">${i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</div>
+        <div class="podium-block">${i + 1}</div>
       </div>
     `)
     .join("");

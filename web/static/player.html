@@ -6,7 +6,7 @@
 <title>Викторина — Игрок</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-1: #0B0F2A;
@@ -170,8 +170,11 @@
   .final-score { text-align: center; font-family: "Fredoka", sans-serif; font-size: 44px; font-weight: 700; color: var(--gold); }
 </style>
 <link rel="stylesheet" href="menu.css">
+<link rel="stylesheet" href="theme.css">
+<meta name="theme-color" content="#292a2c">
 </head>
 <body>
+<header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Пространство игрока</span></header>
 
 <div class="aurora"><span></span><span></span></div>
 
@@ -219,7 +222,7 @@
   <!-- Экран 6: игра окончена -->
   <div class="card finished-screen hidden" id="finished-screen">
     <a class="menu-close" href="/" aria-label="Вернуться в главное меню" title="В главное меню">&times;</a>
-    <div class="finished-title">Игра окончена 🏁</div>
+    <div class="finished-title">Игра окончена</div>
     <div class="finished-rank" id="finished-rank"></div>
     <div class="final-score" id="final-score">0</div>
   </div>
@@ -240,6 +243,11 @@ let roundDuration = 1;
 let remaining = 0;
 let pendingAnswer = null;
 let pendingAdvance = null;
+let activeReadController = null;
+let urgentRun = false;
+let countdownFrame = null;
+let questionDeadline = 0;
+let expiryRequestedFor = null;
 
 const screens = Object.fromEntries([
   ["join", "join-screen"], ["lobby", "lobby-screen"],
@@ -248,6 +256,10 @@ const screens = Object.fromEntries([
 ].map(([name, id]) => [name, document.getElementById(id)]));
 
 function showScreen(name) {
+  if (name !== "question") {
+    cancelAnimationFrame(countdownFrame);
+    countdownFrame = null;
+  }
   for (const [key, el] of Object.entries(screens)) el.classList.toggle("hidden", key !== name);
 }
 
@@ -259,6 +271,7 @@ function connectionError(message) {
 
 async function request(path, body) {
   const controller = new AbortController();
+  if (body === undefined) activeReadController = controller;
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -273,7 +286,10 @@ async function request(path, body) {
       throw err;
     }
     return await res.json();
-  } finally { clearTimeout(timeout); }
+  } finally {
+    clearTimeout(timeout);
+    if (activeReadController === controller) activeReadController = null;
+  }
 }
 
 // A single request sequence prevents old polls from overwriting newer screens.
@@ -289,10 +305,14 @@ async function run(task = async () => {}) {
     }
     connectionError("");
   } catch (err) {
-    connectionError("Не удалось обновить игру. Проверьте подключение — повторяем автоматически…");
+    if (!(err.name === "AbortError" && urgentRun)) {
+      connectionError("Не удалось обновить игру. Проверьте подключение — повторяем автоматически…");
+    }
   } finally {
     busy = false;
-    if (roomCode && !finished) pollTimer = setTimeout(() => run(), 1000);
+    const delay = urgentRun ? 0 : 1000;
+    urgentRun = false;
+    if (roomCode && !finished) pollTimer = setTimeout(() => run(), delay);
   }
 }
 
@@ -326,6 +346,7 @@ joinButton.addEventListener("click", async () => {
 });
 
 async function syncState() {
+  if (pendingAnswer) return;
   const room = await request(`/rooms/${roomCode}/state`);
   if (room.status === "finished") {
     finished = true;
@@ -334,8 +355,10 @@ async function syncState() {
     showFinalScreen(room);
     return;
   }
+  if (pendingAnswer) return;
   if (room.status === "waiting") { showScreen("lobby"); return; }
   let state = await request(`/rooms/${roomCode}/state/${playerId}`);
+  if (pendingAnswer) return;
   myScore = Number(state.player.score);
   if (state.player.status === false) { showWaiting(room); return; }
   currentIndex = state.question_index;
@@ -379,8 +402,11 @@ function showWaiting(room) {
 
 function renderQuestion(state) {
   if (!state.question) return;
-  remaining = Number(state.time_remaining);
+  remaining = Math.max(0, Number(state.time_remaining));
+  const observedDeadline = performance.now() + remaining * 1000;
   if (renderedIndex !== state.question_index) {
+    questionDeadline = observedDeadline;
+    expiryRequestedFor = null;
     renderedIndex = state.question_index;
     roundDuration = Math.max(remaining, 1);
     document.getElementById("question-text").textContent = state.question.text;
@@ -394,24 +420,52 @@ function renderQuestion(state) {
       options.appendChild(button);
     });
   }
+  // Never move the bar backwards when the server returns whole seconds.
+  questionDeadline = Math.min(questionDeadline, observedDeadline);
   document.getElementById("question-number").textContent = `Вопрос ${state.question_index + 1}`;
   document.getElementById("seconds-left").textContent = `${Math.max(0, remaining)} с`;
   document.getElementById("current-score").textContent = myScore;
-  const ratio = Math.max(0, Math.min(1, remaining / roundDuration));
-  const fill = document.getElementById("timebar-fill");
-  fill.style.width = `${ratio * 100}%`;
-  fill.style.background = ratio < .25 ? "var(--wrong)" : "linear-gradient(90deg, var(--teal), var(--gold))";
   document.querySelectorAll(".option-btn").forEach(button => {
     button.disabled = remaining <= 0 || pendingAnswer !== null || pendingAdvance !== null;
   });
   showScreen("question");
+  cancelAnimationFrame(countdownFrame);
+  drawCountdown();
+}
+
+function drawCountdown() {
+  remaining = Math.max(0, (questionDeadline - performance.now()) / 1000);
+  const ratio = Math.min(1, remaining / roundDuration);
+  const fill = document.getElementById("timebar-fill");
+  fill.style.transform = `scaleX(${ratio})`;
+  fill.classList.toggle("running-out", ratio < .25);
+  const label = `${Math.ceil(remaining)} с`;
+  const seconds = document.getElementById("seconds-left");
+  if (seconds.textContent !== label) seconds.textContent = label;
+  if (remaining > 0) {
+    countdownFrame = requestAnimationFrame(drawCountdown);
+  } else {
+    countdownFrame = null;
+    document.querySelectorAll(".option-btn").forEach(button => { button.disabled = true; });
+    if (expiryRequestedFor !== renderedIndex && !pendingAnswer && pendingAdvance === null) {
+      expiryRequestedFor = renderedIndex;
+      if (busy) urgentRun = true;
+      else void run();
+    }
+  }
 }
 
 async function submitAnswer(option, button) {
-  if (busy || finished || remaining <= 0 || pendingAnswer || pendingAdvance !== null) return;
-  pendingAnswer = { player_id: playerId, question_index: currentIndex, option };
+  if (finished || remaining <= 0 || pendingAnswer || pendingAdvance !== null) return;
+  pendingAnswer = { player_id: playerId, question_index: renderedIndex, option };
   button.classList.add("chosen");
   document.querySelectorAll(".option-btn").forEach(el => { el.disabled = true; });
+  if (busy) {
+    // Keep the first click and give it priority over background polling.
+    urgentRun = true;
+    activeReadController?.abort();
+    return;
+  }
   await run();
 }
 
