@@ -256,3 +256,146 @@ input:focus { background: #252628; border-color: #999a9c; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Theme selection stays compact even on the player's narrow screen. */
+.theme-switch {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #ffffff24;
+  border-radius: 999px;
+  background: #111214c9;
+  box-shadow: 0 4px 14px #0003, inset 0 1px 0 #ffffff09;
+}
+.theme-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  padding: 8px 12px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #c5c5c7;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: none;
+}
+.theme-switch button[aria-pressed="true"] {
+  background: #ffffff17;
+  border-color: #ffffff22;
+  color: #fff;
+  box-shadow: inset 0 1px 0 #ffffff0a;
+}
+.theme-switch button:hover:not(:disabled) { background: #ffffff20; color: #fff; transform: none; box-shadow: none; }
+.theme-switch button:active:not(:disabled) { transform: scale(.97); box-shadow: none; }
+.theme-swatch { width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; border: 1px solid #ffffff3d; }
+.swatch-graphite { background: linear-gradient(135deg, #dedede, #3e3e40); }
+.swatch-crimson { background: linear-gradient(135deg, #ff4a43, #790c12); }
+
+/* Ruby glass. CSS gradients remain crisp at any resolution; no bitmap texture. */
+:root[data-theme="crimson"] {
+  --surface: #220a0e;
+  --surface-line: #ffffff26;
+  --ink: #fff7f6;
+  --muted: #d6bcbe;
+  --gold: #fff1ee;
+  --violet: #e6c3c4;
+  --teal: #ffe1dc;
+  --rose: #ff9a97;
+  --wrong: #ffc6c3;
+}
+:root[data-theme="crimson"] body { background: #0c0204; }
+:root[data-theme="crimson"] body::before {
+  background: radial-gradient(ellipse at 18% 4%, #e31b12 0%, #aa0907 19%, #4a0306 42%, transparent 68%),
+    radial-gradient(ellipse at 76% 110%, #b81115 0%, #520509 26%, transparent 60%), #080305;
+}
+:root[data-theme="crimson"] body::after {
+  background: radial-gradient(ellipse at 82% 36%, #050306 12%, #0b0206d9 36%, transparent 68%),
+    radial-gradient(ellipse at 26% 73%, #060307 5%, #080305a6 28%, transparent 61%);
+}
+:root[data-theme="crimson"] :is(.card, .role) {
+  color: var(--ink);
+  background: linear-gradient(135deg, #ffffff18, #ffffff05 48%, #ffffff0c), #14111638;
+  border: 1px solid #ffffff30;
+  border-top-color: #ffffff70;
+  border-left-color: #ffffff45;
+  box-shadow: 0 18px 45px #0005, inset 0 1px 0 #ffffff30, inset 0 -1px 0 #ffffff0a;
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+:root[data-theme="crimson"] .role {
+  border-radius: 22px;
+  overflow: hidden;
+  text-shadow: 0 1px 8px #0005;
+}
+:root[data-theme="crimson"] .role-host {
+  background: linear-gradient(135deg, #ffffff20, #ffffff06 48%, #ffffff0e), #14111630;
+}
+/* Static reflections suggest curved glass without animating the blur filter. */
+:root[data-theme="crimson"] .role::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 5% 0%, #ffffff16, transparent 55%),
+    linear-gradient(115deg, transparent 40%, #ffffff05 58%, transparent 75%);
+}
+:root[data-theme="crimson"] .role > * { position: relative; }
+:root[data-theme="crimson"] .role strong { color: #fff; }
+:root[data-theme="crimson"] .role .role-description { color: #f0e5e7; }
+:root[data-theme="crimson"] .role .role-number { color: #e3d6d9; }
+:root[data-theme="crimson"] :is(.role-description, .role-number, .menu-intro p, .role-heading, .menu-footer, .hero-kicker) { color: #e0cbcd; }
+:root[data-theme="crimson"] .role-arrow { border-color: #ffffff45; background: linear-gradient(135deg, #ffffff1a, #ffffff05); box-shadow: inset 0 1px 0 #ffffff28, 0 4px 10px #0002; }
+:root[data-theme="crimson"] .role:hover .role-arrow { background: #ffffff26; }
+:root[data-theme="crimson"] .role:hover { border-color: #ffffff70; box-shadow: 0 24px 48px #0006, inset 0 1px 0 #ffffff55, inset 0 -1px 0 #ffffff16; }
+/* Inner surfaces use tint instead of stacking expensive blur filters. */
+:root[data-theme="crimson"] :is(.quiz-card, .q-card, .side-panel, .chip) {
+  background: linear-gradient(130deg, #ffffff0e, #ffffff03), #19080a66;
+  border-color: #ffffff21;
+  box-shadow: 0 8px 22px #0003, inset 0 1px 0 #ffffff0a;
+}
+:root[data-theme="crimson"] :is(button:not([data-theme-choice]), button.ghost, .option-btn:nth-child(n), .menu-close) {
+  color: #fff7f6;
+  background: linear-gradient(125deg, #ffffff16, #ffffff05), #3a111685;
+  border: 1px solid #ffffff30;
+  border-top-color: #ffffff4a;
+  box-shadow: 0 5px 12px #0004, inset 0 1px 0 #ffffff0c;
+}
+:root[data-theme="crimson"] :is(button:not([data-theme-choice]), button.ghost, .option-btn:nth-child(n), .menu-close):hover:not(:disabled) {
+  background: linear-gradient(125deg, #ffffff26, #ffffff0c), #591c248c;
+  border-color: #ffffff5c;
+  box-shadow: 0 8px 18px #0005;
+}
+:root[data-theme="crimson"] :is(button:not([data-theme-choice]), .menu-close):active:not(:disabled) { box-shadow: inset 0 3px 8px #0004; }
+:root[data-theme="crimson"] .option-btn.chosen { background: #94424b99; outline-color: #fff0ec; }
+:root[data-theme="crimson"] :is(.option-btn .idx, .feedback-title::before) { background: #ffffff0c; color: #fff1ee; box-shadow: inset 0 1px 0 #ffffff24, 0 3px 8px #0003; }
+:root[data-theme="crimson"] input { background: #0f0508a6; border-color: #ffffff26; color: #fff7f6; }
+:root[data-theme="crimson"] input::placeholder { color: #bfa9ad; }
+:root[data-theme="crimson"] input:focus { background: #21080bbb; border-color: #f0b6ba; }
+:root[data-theme="crimson"] .error { background: #22070dd9; border-color: #ffaba4; }
+:root[data-theme="crimson"] .timebar-track { background: #0f0307b3; }
+:root[data-theme="crimson"] .timebar-fill { background: linear-gradient(90deg, #ee7977, #ffe8e3); box-shadow: 0 0 8px #ef706a30; }
+:root[data-theme="crimson"] .timebar-fill.running-out { background: #ff9e94; }
+:root[data-theme="crimson"] :is(.pulse-dot, .loader span, .hero-kicker > span) { background: #ffd2cd; }
+:root[data-theme="crimson"] .p1 .podium-block { background: linear-gradient(135deg, #cf78808c, #6a242b99); }
+:root[data-theme="crimson"] .p2 .podium-block { background: linear-gradient(135deg, #a2636c80, #3c151c99); }
+:root[data-theme="crimson"] .p3 .podium-block { background: linear-gradient(135deg, #78454f80, #2b0d1599); }
+:root[data-theme="crimson"] .theme-switch { background: #150509c9; border-color: #ffffff30; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-theme="crimson"] :is(.card, .role) { background: linear-gradient(125deg, #3a1a20ed, #19090df5); }
+}
+@media (max-width: 760px) {
+  .site-header .site-label { display: none; }
+}
+@media (max-width: 650px) {
+  body { padding-top: 98px; }
+  .site-header { top: 22px; gap: 10px; }
+  .theme-switch { gap: 2px; padding: 3px; }
+  .theme-switch button { padding: 8px 10px; min-height: 38px; }
+  :root[data-theme="crimson"] :is(.card, .role) { -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); }
+}

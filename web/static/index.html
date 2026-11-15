@@ -8,10 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
-  <header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Вопросы объединяют</span></header>
+  <header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Вопросы объединяют</span><div class="theme-switch" role="group" aria-label="Оформление сайта">
+  <button type="button" data-theme-choice="graphite" aria-pressed="true"><span class="theme-swatch swatch-graphite" aria-hidden="true"></span>Графит</button>
+  <button type="button" data-theme-choice="crimson" aria-pressed="false"><span class="theme-swatch swatch-crimson" aria-hidden="true"></span>Рубин</button>
+</div></header>
   <main class="menu-shell">
     <div class="menu-panel">
       <div class="menu-intro">

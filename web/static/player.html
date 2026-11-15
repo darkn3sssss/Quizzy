@@ -170,11 +170,15 @@
   .final-score { text-align: center; font-family: "Fredoka", sans-serif; font-size: 44px; font-weight: 700; color: var(--gold); }
 </style>
 <link rel="stylesheet" href="menu.css">
+<script src="theme.js"></script>
 <link rel="stylesheet" href="theme.css">
 <meta name="theme-color" content="#292a2c">
 </head>
 <body>
-<header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Пространство игрока</span></header>
+<header class="site-header"><a class="brand" href="/">QUIZZY.</a><span class="site-label">Пространство игрока</span><div class="theme-switch" role="group" aria-label="Оформление сайта">
+  <button type="button" data-theme-choice="graphite" aria-pressed="true"><span class="theme-swatch swatch-graphite" aria-hidden="true"></span>Графит</button>
+  <button type="button" data-theme-choice="crimson" aria-pressed="false"><span class="theme-swatch swatch-crimson" aria-hidden="true"></span>Рубин</button>
+</div></header>
 
 <div class="aurora"><span></span><span></span></div>
 
