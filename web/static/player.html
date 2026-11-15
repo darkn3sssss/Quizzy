@@ -169,6 +169,7 @@
   .finished-rank { text-align: center; color: var(--muted); font-size: 15px; margin-bottom: 18px; }
   .final-score { text-align: center; font-family: "Fredoka", sans-serif; font-size: 44px; font-weight: 700; color: var(--gold); }
 </style>
+<link rel="stylesheet" href="menu.css">
 </head>
 <body>
 
@@ -213,7 +214,8 @@
   </div>
 
   <!-- Экран 6: игра окончена -->
-  <div class="card hidden" id="finished-screen">
+  <div class="card finished-screen hidden" id="finished-screen">
+    <a class="menu-close" href="/" aria-label="Вернуться в главное меню" title="В главное меню">&times;</a>
     <div class="finished-title">Игра окончена 🏁</div>
     <div class="finished-rank" id="finished-rank"></div>
     <div class="final-score" id="final-score">0</div>
@@ -237,6 +239,8 @@ let renderedQuestionIndex = -1; // чтобы не пересоздавать к
 let hasAnsweredCurrentQuestion = false;
 let myScore = 0;
 let roundDuration = null;
+let isFinished = false;
+let feedbackTimeoutId = null;
 
 // ==== Ссылки на экраны ====
 const screens = {
@@ -298,8 +302,11 @@ function startPolling() {
 }
 
 function handleState(state) {
+  if (isFinished) return;
   if (state.status === "finished") {
+    isFinished = true;
     clearInterval(pollIntervalId);
+    clearTimeout(feedbackTimeoutId);
     showFinalScreen(state);
     return;
   }
@@ -374,16 +381,19 @@ async function submitAnswer(optionIndex, chosenBtn) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ player_id: playerId, option: optionIndex}),
     });
+    if (isFinished) return;
     if (!res.ok) {
       showScreen("waitingNext");
       return;
     }
     const result = await res.json();
+    if (isFinished) return;
     const newScore = Number(result.new_score ?? result.score ?? myScore);
     myScore = Number.isFinite(newScore) ? Math.max(myScore, newScore) : myScore;
     showFeedback(result.correct);
   } catch (err) {
     console.error("Ошибка отправки ответа:", err);
+    if (isFinished) return;
     showScreen("waitingNext");
   }
 }
@@ -406,7 +416,10 @@ function showFeedback(isCorrect) {
   showScreen("feedback");
   if (isCorrect) launchConfetti();
 
-  setTimeout(() => { showScreen("waitingNext"); }, 2000);
+  clearTimeout(feedbackTimeoutId);
+  feedbackTimeoutId = setTimeout(() => {
+    if (!isFinished) showScreen("waitingNext");
+  }, 2000);
 }
 
 function launchConfetti() {

@@ -1,0 +1,24 @@
+.finished-screen {
+  position: relative;
+  padding-top: 72px;
+}
+
+.menu-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  color: #F3F1FF;
+  text-decoration: none;
+  font: 28px/1 sans-serif;
+}
+
+.menu-close:hover { background: rgba(255,255,255,.14); }
+.menu-close:focus-visible { outline: 3px solid #FFC857; outline-offset: 4px; }

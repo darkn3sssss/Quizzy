@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quizzy — Главное меню</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #0B0F2A;
+      color: #F3F1FF;
+      font-family: "Inter", sans-serif;
+    }
+    .aurora { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+    .aurora::before, .aurora::after {
+      content: "";
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: .3;
+    }
+    .aurora::before { background: #8B7CFF; top: -200px; left: -160px; }
+    .aurora::after { background: #FF5C8A; bottom: -200px; right: -140px; }
+    main {
+      position: relative;
+      width: 100%;
+      max-width: 620px;
+      padding: 40px;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 24px;
+      background: #171233;
+      box-shadow: 0 30px 60px -25px rgba(0,0,0,.55);
+    }
+    h1 { margin: 0 0 12px; text-align: center; font: 600 44px "Fredoka", sans-serif; color: #FFC857; }
+    p { margin: 0 0 30px; text-align: center; color: #9A9FC4; line-height: 1.5; }
+    nav { display: grid; gap: 16px; }
+    .role {
+      display: block;
+      padding: 24px;
+      border-radius: 16px;
+      background: #FFC857;
+      color: #221200;
+      text-decoration: none;
+      transition: transform .15s;
+    }
+    .role.player { background: #8B7CFF; color: #fff; }
+    .role:hover { transform: translateY(-2px); }
+    .role:focus-visible { outline: 3px solid #2FE6C1; outline-offset: 4px; }
+    .role strong { display: block; margin-bottom: 8px; font-size: 22px; }
+    .role span { font-size: 14px; line-height: 1.5; }
+    @media (max-width: 480px) { main { padding: 28px 20px; } }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <main>
+    <h1>Quizzy</h1>
+    <p>Добро пожаловать в викторину! Выберите свою роль.</p>
+    <nav aria-label="Главное меню">
+      <a class="role" href="host.html">
+        <strong>Я ведущий</strong>
+        <span>Создайте квиз, пригласите игроков и начните игру.</span>
+      </a>
+      <a class="role player" href="player.html">
+        <strong>Я игрок</strong>
+        <span>Присоединитесь по коду комнаты и отвечайте на вопросы.</span>
+      </a>
+    </nav>
+  </main>
+</body>
+</html>

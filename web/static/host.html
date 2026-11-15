@@ -269,6 +269,7 @@
   .editor-actions .right { display: flex; gap: 12px; }
   .lib-note { color: var(--teal); font-size: 14px; margin-bottom: 14px; }
 </style>
+<link rel="stylesheet" href="menu.css">
 </head>
 <body>
 
@@ -342,7 +343,8 @@
   </div>
 
   <!-- Экран 4: игра окончена -->
-  <div class="card hidden" id="finished-screen">
+  <div class="card finished-screen hidden" id="finished-screen">
+    <a class="menu-close" href="/" aria-label="Вернуться в главное меню" title="В главное меню">&times;</a>
     <div class="finished-title">Игра окончена 🏆</div>
     <div class="finished-sub">Финальные результаты</div>
     <div class="podium" id="podium"></div>
