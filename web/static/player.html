@@ -176,6 +176,7 @@
 <div class="aurora"><span></span><span></span></div>
 
 <div class="screen">
+  <div class="error hidden" id="connection-error" role="status" aria-live="polite"></div>
 
   <!-- Экран 1: вход в комнату -->
   <div class="card" id="join-screen">
@@ -196,6 +197,7 @@
 
   <!-- Экран 3: активный вопрос, ждём выбора -->
   <div class="card hidden" id="question-screen">
+    <div class="score-badge"><span id="question-number"></span> · <span id="seconds-left"></span></div>
     <div class="score-badge">Твои очки: <b id="current-score">0</b></div>
     <div class="timebar-track"><div class="timebar-fill" id="timebar-fill" style="width:100%"></div></div>
     <div class="question-text" id="question-text"></div>
@@ -205,7 +207,8 @@
   <!-- Экран 4: ответ отправлен, ждём следующего вопроса -->
   <div class="card hidden" id="waiting-next-screen">
     <div class="loader"><span></span><span></span><span></span></div>
-    <div class="center-hint" id="waiting-next-hint">Ответ принят! Ждём остальных...</div>
+    <div class="center-hint" id="waiting-next-hint">Все вопросы пройдены! Ждём остальных…</div>
+    <div class="score-badge">Твои очки: <b id="waiting-score">0</b></div>
   </div>
 
   <!-- Экран 5: обратная связь после ответа -->
@@ -224,254 +227,233 @@
 </div>
 
 <script>
-// ==== Настройки ====
-// Как и в файле ведущего: бэкенд ищем на том же хосте, с которого открыта
-// страница, а не всегда на localhost.
 const API_BASE = location.origin;
-const DEBUG = true; // сырой /state в консоли — помогает сверить имена полей с бэкендом
-
-// ==== Состояние приложения ====
 let roomCode = null;
 let playerId = null;
-let pollIntervalId = null;
-let lastSeenQuestionIndex = -1;
-let renderedQuestionIndex = -1; // чтобы не пересоздавать кнопки вариантов на каждый опрос /state
-let hasAnsweredCurrentQuestion = false;
+let busy = false;
+let finished = false;
+let pollTimer = null;
+let currentIndex = -1;
+let renderedIndex = null;
 let myScore = 0;
-let roundDuration = null;
-let isFinished = false;
-let feedbackTimeoutId = null;
+let roundDuration = 1;
+let remaining = 0;
+let pendingAnswer = null;
+let pendingAdvance = null;
 
-// ==== Ссылки на экраны ====
-const screens = {
-  join: document.getElementById("join-screen"),
-  lobby: document.getElementById("lobby-screen"),
-  question: document.getElementById("question-screen"),
-  waitingNext: document.getElementById("waiting-next-screen"),
-  feedback: document.getElementById("feedback-screen"),
-  finished: document.getElementById("finished-screen"),
-};
+const screens = Object.fromEntries([
+  ["join", "join-screen"], ["lobby", "lobby-screen"],
+  ["question", "question-screen"], ["waiting", "waiting-next-screen"],
+  ["feedback", "feedback-screen"], ["finished", "finished-screen"],
+].map(([name, id]) => [name, document.getElementById(id)]));
 
 function showScreen(name) {
-  Object.values(screens).forEach(el => el.classList.add("hidden"));
-  screens[name].classList.remove("hidden");
+  for (const [key, el] of Object.entries(screens)) el.classList.toggle("hidden", key !== name);
 }
 
-// ==== Шаг 1: вход в комнату ====
-document.getElementById("join-btn").addEventListener("click", async () => {
+function connectionError(message) {
+  const el = document.getElementById("connection-error");
+  el.textContent = message;
+  el.classList.toggle("hidden", !message);
+}
+
+async function request(path, body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = new Error(await res.text());
+      err.status = res.status;
+      throw err;
+    }
+    return await res.json();
+  } finally { clearTimeout(timeout); }
+}
+
+// A single request sequence prevents old polls from overwriting newer screens.
+async function run(task = async () => {}) {
+  if (busy || finished) return;
+  busy = true;
+  clearTimeout(pollTimer);
+  try {
+    await task();
+    if (roomCode) {
+      if (pendingAnswer) await sendPendingAnswer();
+      await syncState();
+    }
+    connectionError("");
+  } catch (err) {
+    connectionError("Не удалось обновить игру. Проверьте подключение — повторяем автоматически…");
+  } finally {
+    busy = false;
+    if (roomCode && !finished) pollTimer = setTimeout(() => run(), 1000);
+  }
+}
+
+const joinButton = document.getElementById("join-btn");
+joinButton.addEventListener("click", async () => {
+  if (busy) return;
   const code = document.getElementById("room-code-input").value.trim();
   const name = document.getElementById("name-input").value.trim();
-  const errorEl = document.getElementById("join-error");
-  errorEl.classList.add("hidden");
-
+  const error = document.getElementById("join-error");
+  error.classList.add("hidden");
   if (!code || !name) {
-    errorEl.textContent = "Заполни код комнаты и имя";
-    errorEl.classList.remove("hidden");
+    error.textContent = "Заполни код комнаты и имя";
+    error.classList.remove("hidden");
     return;
   }
-
-  try {
-    const res = await fetch(`${API_BASE}/rooms/${code}/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `Ошибка сервера: ${res.status}`);
+  joinButton.disabled = true;
+  await run(async () => {
+    try {
+      const player = await request(`/rooms/${encodeURIComponent(code)}/join`, { name });
+      roomCode = encodeURIComponent(code);
+      playerId = player.id;
+      showScreen("lobby");
+    } catch (err) {
+      error.textContent = err.status === 404 ? "Комната не найдена. Проверь код."
+        : err.status === 409 ? "Игра уже началась, вход закрыт."
+        : "Не удалось войти. Проверь подключение и попробуй снова.";
+      error.classList.remove("hidden");
     }
-    const player = await res.json();
-    roomCode = code;
-    playerId = player.id;
-    showScreen("lobby");
-    startPolling();
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.classList.remove("hidden");
-  }
+  });
+  joinButton.disabled = false;
 });
 
-// ==== Опрос /state каждую секунду, реагируем на смену состояния ====
-function startPolling() {
-  pollIntervalId = setInterval(async () => {
-    const state = await fetchState();
-    if (!state) return;
-    if (DEBUG) console.debug("[quiz] /state →", state);
-    handleState(state);
-  }, 1000);
-}
-
-function handleState(state) {
-  if (isFinished) return;
-  if (state.status === "finished") {
-    isFinished = true;
-    clearInterval(pollIntervalId);
-    clearTimeout(feedbackTimeoutId);
-    showFinalScreen(state);
+async function syncState() {
+  const room = await request(`/rooms/${roomCode}/state`);
+  if (room.status === "finished") {
+    finished = true;
+    pendingAnswer = null;
+    pendingAdvance = null;
+    showFinalScreen(room);
     return;
   }
-
-  if (state.status === "waiting") {
-    showScreen("lobby");
-    return;
-  }
-
-  // status === "active"
-  if (state.question_index !== lastSeenQuestionIndex) {
-    lastSeenQuestionIndex = state.question_index;
-    hasAnsweredCurrentQuestion = false;
-    roundDuration = null;
-  }
-
-  const remaining = Number(state.time_remaining ?? 0);
-  if (roundDuration === null || remaining > roundDuration) roundDuration = Math.max(remaining, 1);
-  updateTimebar(remaining, roundDuration);
-
-  if (hasAnsweredCurrentQuestion) {
-    showScreen("waitingNext");
-    return;
-  }
-
-  document.getElementById("current-score").textContent = myScore;
-
-  if (state.question) {
-    // Раньше кнопки вариантов пересоздавались на каждый опрос /state (раз в
-    // секунду), из-за чего анимация появления проигрывалась заново — отсюда и
-    // "мигание". Теперь перерисовываем их только когда вопрос реально сменился.
-    if (state.question_index !== renderedQuestionIndex) {
-      renderedQuestionIndex = state.question_index;
-      renderQuestion(state.question);
+  if (room.status === "waiting") { showScreen("lobby"); return; }
+  let state = await request(`/rooms/${roomCode}/state/${playerId}`);
+  myScore = Number(state.player.score);
+  if (state.player.status === false) { showWaiting(room); return; }
+  currentIndex = state.question_index;
+  if (pendingAdvance !== null && pendingAdvance !== currentIndex) pendingAdvance = null;
+  if (currentIndex === -1 || pendingAdvance === currentIndex || state.time_remaining <= 0) {
+    const index = currentIndex;
+    pendingAdvance = index;
+    showScreen("feedback");
+    document.getElementById("feedback-content").className = "feedback";
+    document.getElementById("feedback-content").textContent = "Загружаем следующий вопрос…";
+    try {
+      await request(`/rooms/${roomCode}/next/${playerId}`, { question_index: index });
+      pendingAdvance = null;
+    } catch (err) {
+      if (err.status !== 409) throw err;
+      // Another tab or a retried request may already have advanced this player.
     }
-    showScreen("question");
-  }
-}
-
-function updateTimebar(remaining, total) {
-  const ratio = Math.max(0, Math.min(1, remaining / total));
-  const fill = document.getElementById("timebar-fill");
-  fill.style.width = `${ratio * 100}%`;
-  fill.style.background = ratio < 0.25
-    ? "var(--wrong)"
-    : "linear-gradient(90deg, var(--teal), var(--gold))";
-}
-
-function renderQuestion(question) {
-  document.getElementById("question-text").textContent = question.text;
-  const optionsEl = document.getElementById("options");
-  optionsEl.innerHTML = "";
-  question.options.forEach((optText, index) => {
-    const btn = document.createElement("button");
-    btn.className = "option-btn";
-    btn.style.animationDelay = `${index * 0.05}s`;
-    btn.innerHTML = `<span class="idx">${index + 1}</span><span>${escapeHtml(optText)}</span>`;
-    btn.addEventListener("click", () => submitAnswer(index, btn));
-    optionsEl.appendChild(btn);
-  });
-}
-
-// ==== Отправка ответа ====
-async function submitAnswer(optionIndex, chosenBtn) {
-  document.querySelectorAll(".option-btn").forEach(btn => (btn.disabled = true));
-  chosenBtn.classList.add("chosen");
-  hasAnsweredCurrentQuestion = true;
-
-  try {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/answer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ player_id: playerId, option: optionIndex}),
-    });
-    if (isFinished) return;
-    if (!res.ok) {
-      showScreen("waitingNext");
+    state = await request(`/rooms/${roomCode}/state/${playerId}`);
+    myScore = Number(state.player.score);
+    if (state.player.status === false) {
+      pendingAdvance = null;
+      const latest = await request(`/rooms/${roomCode}/state`);
+      if (latest.status === "finished") { finished = true; showFinalScreen(latest); }
+      else showWaiting(latest);
       return;
     }
-    const result = await res.json();
-    if (isFinished) return;
-    const newScore = Number(result.new_score ?? result.score ?? myScore);
-    myScore = Number.isFinite(newScore) ? Math.max(myScore, newScore) : myScore;
-    showFeedback(result.correct);
+    currentIndex = state.question_index;
+    if (currentIndex !== index) pendingAdvance = null;
+  }
+  renderQuestion(state);
+}
+
+function showWaiting(room) {
+  const players = Object.values(room.players || {});
+  const count = players.filter(p => p.status === false).length;
+  document.getElementById("waiting-next-hint").textContent =
+    `Все вопросы пройдены! Ждём остальных. Завершили: ${count} из ${players.length}.`;
+  document.getElementById("waiting-score").textContent = myScore;
+  showScreen("waiting");
+}
+
+function renderQuestion(state) {
+  if (!state.question) return;
+  remaining = Number(state.time_remaining);
+  if (renderedIndex !== state.question_index) {
+    renderedIndex = state.question_index;
+    roundDuration = Math.max(remaining, 1);
+    document.getElementById("question-text").textContent = state.question.text;
+    const options = document.getElementById("options");
+    options.innerHTML = "";
+    state.question.options.forEach((text, option) => {
+      const button = document.createElement("button");
+      button.className = "option-btn";
+      button.innerHTML = `<span class="idx">${option + 1}</span><span>${escapeHtml(text)}</span>`;
+      button.addEventListener("click", () => submitAnswer(option, button));
+      options.appendChild(button);
+    });
+  }
+  document.getElementById("question-number").textContent = `Вопрос ${state.question_index + 1}`;
+  document.getElementById("seconds-left").textContent = `${Math.max(0, remaining)} с`;
+  document.getElementById("current-score").textContent = myScore;
+  const ratio = Math.max(0, Math.min(1, remaining / roundDuration));
+  const fill = document.getElementById("timebar-fill");
+  fill.style.width = `${ratio * 100}%`;
+  fill.style.background = ratio < .25 ? "var(--wrong)" : "linear-gradient(90deg, var(--teal), var(--gold))";
+  document.querySelectorAll(".option-btn").forEach(button => {
+    button.disabled = remaining <= 0 || pendingAnswer !== null || pendingAdvance !== null;
+  });
+  showScreen("question");
+}
+
+async function submitAnswer(option, button) {
+  if (busy || finished || remaining <= 0 || pendingAnswer || pendingAdvance !== null) return;
+  pendingAnswer = { player_id: playerId, question_index: currentIndex, option };
+  button.classList.add("chosen");
+  document.querySelectorAll(".option-btn").forEach(el => { el.disabled = true; });
+  await run();
+}
+
+async function sendPendingAnswer() {
+  const answer = pendingAnswer;
+  try {
+    const result = await request(`/rooms/${roomCode}/answer`, answer);
+    const previousScore = myScore;
+    myScore = Number(result.new_score);
+    pendingAnswer = null;
+    pendingAdvance = answer.question_index;
+    const content = document.getElementById("feedback-content");
+    content.className = "feedback " + (result.correct ? "correct" : "wrong");
+    const earned = myScore - previousScore;
+    content.innerHTML = `<div class="feedback-title">${result.correct ? "Верно!" : "Неверно"}</div>
+      <div class="feedback-score">За ответ: <b>${earned > 0 ? "+" : ""}${earned}</b><br>Твои очки: <b>${myScore}</b></div>`;
+    showScreen("feedback");
+    await new Promise(resolve => setTimeout(resolve, 650));
   } catch (err) {
-    console.error("Ошибка отправки ответа:", err);
-    if (isFinished) return;
-    showScreen("waitingNext");
+    if (err.status !== 409) throw err;
+    // A duplicate, expired or stale answer is reconciled through player state.
+    pendingAnswer = null;
+    pendingAdvance = answer.question_index;
   }
 }
 
-function showFeedback(isCorrect) {
-  const content = document.getElementById("feedback-content");
-  const wrapper = content.parentElement;
-  wrapper.className = "feedback " + (isCorrect ? "correct" : "wrong");
-
-  const icon = isCorrect
-    ? `<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke-width="3"/><path fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" d="M15 27l7 7 15-15"/></svg>`
-    : `<svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23" fill="none" stroke-width="3"/><path fill="none" stroke-width="3.5" stroke-linecap="round" d="M18 18l16 16M34 18L18 34"/></svg>`;
-
-  content.innerHTML = `
-    <div class="feedback-icon">${icon}</div>
-    <div class="feedback-title">${isCorrect ? "Верно!" : "Неверно"}</div>
-    <div class="feedback-score">Твои очки: <b>${myScore}</b></div>
-    ${isCorrect ? `<div class="confetti" id="confetti"></div>` : ""}
-  `;
-  showScreen("feedback");
-  if (isCorrect) launchConfetti();
-
-  clearTimeout(feedbackTimeoutId);
-  feedbackTimeoutId = setTimeout(() => {
-    if (!isFinished) showScreen("waitingNext");
-  }, 2000);
-}
-
-function launchConfetti() {
-  const el = document.getElementById("confetti");
-  if (!el) return;
-  const colors = ["#FFC857", "#8B7CFF", "#2FE6C1", "#FF5C8A"];
-  for (let i = 0; i < 16; i++) {
-    const piece = document.createElement("i");
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 60 + Math.random() * 90;
-    piece.style.setProperty("--tx", `${Math.cos(angle) * dist}px`);
-    piece.style.setProperty("--ty", `${Math.sin(angle) * dist - 20}px`);
-    piece.style.setProperty("--tr", `${Math.random() * 360}deg`);
-    piece.style.background = colors[i % colors.length];
-    piece.style.animationDelay = `${Math.random() * 0.1}s`;
-    el.appendChild(piece);
-  }
-}
-
-// ==== Финальный экран: считаем свой ранг по последнему известному state ====
-function showFinalScreen(state) {
-  document.getElementById("final-score").textContent = myScore;
-  const rankEl = document.getElementById("finished-rank");
-
-  const players = Object.entries(state.players || {})
-    .map(([id, p]) => ({ id, score: Number(p.score ?? p.points ?? p.total_score ?? 0) }))
+function showFinalScreen(room) {
+  const players = Object.entries(room.players || {})
+    .map(([id, p]) => ({ id, score: Number(p.score) }))
     .sort((a, b) => b.score - a.score);
-
-  const myIndex = players.findIndex(p => p.id === playerId);
-  rankEl.textContent = myIndex >= 0
-    ? `Ты на ${myIndex + 1}-м месте из ${players.length}`
-    : "";
-
+  const own = players.find(p => p.id === playerId);
+  if (own) myScore = own.score;
+  document.getElementById("final-score").textContent = myScore;
+  document.getElementById("finished-rank").textContent = own
+    ? `Ты на ${players.findIndex(p => p.id === playerId) + 1}-м месте из ${players.length}` : "";
   showScreen("finished");
 }
 
-// ==== Вспомогательное: запрос состояния комнаты ====
-async function fetchState() {
-  try {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/state`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.error("Ошибка опроса /state:", err);
-    return null;
-  }
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+function escapeHtml(value) {
+  const el = document.createElement("div");
+  el.textContent = value;
+  return el.innerHTML;
 }
 </script>
 </body>

@@ -15,19 +15,14 @@ type Question struct {
 }
 
 type Room struct {
-	QuizID          string                `json:"quiz_id"`
-	RoomID          string                `json:"room_id"`
-	CurrentQuestion int                   `json:"current_question"`
-	StartTime       int64                 `json:"start_time"`
-	Status          string                `json:"status"`
-	Players         map[string]*Player    `json:"players"`
-	Answers         map[string]([]Answer) `json:"answers"`
-}
-
-type Player struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Score int    `json:"score"`
+	QuizID string `json:"quiz_id"`
+	RoomID string `json:"room_id"`
+	//CurrentQuestion int                   `json:"current_question"`
+	//StartTime       int64                 `json:"start_time"`
+	CountFinishPlayer int                   `json:"count_finish_player"`
+	Status            string                `json:"status"`
+	Players           map[string]*Player    `json:"players"`
+	Answers           map[string]([]Answer) `json:"answers"`
 }
 
 type Answer struct {
@@ -37,13 +32,27 @@ type Answer struct {
 	AnsweredAt int64  `json:"answered_at"`
 }
 
+type Player struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Status          bool   `json:"status"`
+	Score           int    `json:"score"`
+	CurrentQuestion int    `json:"current_question"`
+	StartTime       int64  `json:"start_time"`
+}
+
 type JoinRequest struct {
 	Name string `json:"name"`
 }
 
+type NextQuestionRequest struct {
+	QuestionIndex *int `json:"question_index"`
+}
+
 type AnswerRequest struct {
-	PlayerID string `json:"player_id"`
-	Option   int    `json:"option"`
+	QuestionIndex *int   `json:"question_index"`
+	PlayerID      string `json:"player_id"`
+	Option        int    `json:"option"`
 }
 
 type PublicQuestion struct {
@@ -52,7 +61,7 @@ type PublicQuestion struct {
 }
 
 type NextQuestionResponse struct {
-	Status          string          `json:"status"`
+	// Status          string          `json:"status"`
 	CurrentQuestion int             `json:"current_question"`
 	Question        *PublicQuestion `json:"question,omitempty"`
 }
@@ -62,10 +71,17 @@ type AnswerResponse struct {
 	NewScore int  `json:"new_score"`
 }
 
+type RoomPlayerStateResponse struct {
+	Question        *PublicQuestion `json:"question,omitempty"`
+	CurrentQuestion int             `json:"question_index"`
+	TimeRemaining   int64           `json:"time_remaining"`
+	Player          Player          `json:"player"`
+}
+
 type RoomStateResponse struct {
-	Status          string             `json:"status"`
-	Question        *PublicQuestion    `json:"question,omitempty"`
-	CurrentQuestion int                `json:"question_index"`
-	TimeRemaining   int64              `json:"time_remaining"`
-	Players         map[string]*Player `json:"players"`
+	Status string `json:"status"`
+	// Question        *PublicQuestion    `json:"question,omitempty"`
+	// CurrentQuestion int                `json:"question_index"`
+	// TimeRemaining   int64              `json:"time_remaining"`
+	Players map[string]*Player `json:"players"`
 }

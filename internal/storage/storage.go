@@ -8,7 +8,7 @@ type Storage interface {
 	ListQuizzes() ([]models.Quiz, error)
 	CreateRoom(r models.Room) error
 	GetRoom(id string) (models.Room, error)
-	UpdateRoom(r models.Room) error
+	UpdateRoom(id string, update func(*models.Room) error) (models.Room, error)
 	AddPlayer(roomID string, p models.Player) error
 	SaveAnswer(roomID string, a models.Answer) error
 }

@@ -268,6 +268,11 @@
   .editor-actions { display: flex; gap: 12px; justify-content: space-between; margin-top: 22px; flex-wrap: wrap; }
   .editor-actions .right { display: flex; gap: 12px; }
   .lib-note { color: var(--teal); font-size: 14px; margin-bottom: 14px; }
+  .progress-row { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--surface-line); }
+  .progress-row span:first-child { overflow-wrap: anywhere; min-width: 0; }
+  .progress-row span:last-child { color: var(--muted); flex-shrink: 0; font-size: 14px; }
+  #connection-error { margin: 0 0 16px; }
+  @media (max-width: 560px) { body { padding: 16px; } .card { padding: 24px; } .lib-head { flex-wrap: wrap; } }
 </style>
 <link rel="stylesheet" href="menu.css">
 </head>
@@ -276,6 +281,7 @@
 <div class="aurora"><span></span><span></span><span></span></div>
 
 <div class="screen">
+  <div class="error hidden" id="connection-error" role="status" aria-live="polite"></div>
 
   <!-- Экран 1: создание комнаты -->
   <div class="card" id="library-screen">
@@ -313,33 +319,18 @@
     <div class="next-btn-wrap"><button id="start-btn">Начать викторину</button></div>
   </div>
 
-  <!-- Экран 3: активный вопрос -->
+  <!-- Индивидуальный прогресс участников -->
   <div class="card hidden" id="game-screen">
-    <div class="topbar">
-      <div class="qcounter" id="qcounter">Вопрос</div>
-      <div class="ring-wrap">
-        <svg viewBox="0 0 64 64">
-          <circle class="ring-track" cx="32" cy="32" r="27"></circle>
-          <circle class="ring-fill" id="ring-fill" cx="32" cy="32" r="27" stroke-dasharray="169.6"></circle>
-        </svg>
-        <div class="ring-num" id="timer-num">--</div>
-      </div>
-    </div>
-
+    <h1>Игра идёт</h1>
+    <p class="waiting-hint">Каждый отвечает в своём темпе</p>
+    <div class="answered-meter" id="answered-meter"></div>
     <div class="game-layout">
-      <div>
-        <div class="question-text" id="question-text"></div>
-        <div class="options" id="options"></div>
-      </div>
-
+      <div><h2>Прогресс участников</h2><div id="progress-list"></div></div>
       <div class="side-panel">
         <h2>Таблица лидеров</h2>
-        <div class="answered-meter hidden" id="answered-meter"></div>
         <div class="board-list" id="players-list"></div>
       </div>
     </div>
-
-    <div class="next-btn-wrap"><button id="next-btn">Следующий вопрос</button></div>
   </div>
 
   <!-- Экран 4: игра окончена -->
@@ -354,27 +345,12 @@
 </div>
 
 <script>
-// ==== Настройки ====
-// Раньше был жёстко забит "http://localhost:8080" — это работает только на
-// компьютере ведущего, а с телефонов "localhost" означает сам телефон, а не
-// сервер. Теперь бэкенд ищется на том же хосте, с которого открыта сама
-// страница (если открыть её как файл — хост пустой, тогда используем localhost
-// для локальной разработки).
 const API_BASE = location.origin;
-const DEBUG = true; // выведет в консоль сырой /state — удобно, чтобы сверить имена полей с бэкендом
-
-// ==== Состояние приложения ====
 let roomCode = null;
 let pollIntervalId = null;
-let questionStartedAt = null;
-let roundDuration = null; // сколько секунд длится раунд — определяем динамически по первому значению
-
-// Защита от бага с обнулением очков: /state иногда может вернуть на секунду
-// устаревший/нулевой счёт (например, если бэкенд ещё не успел применить ответ,
-// либо каждый раз пересобирает players и теряет накопленный score).
-// Раз счёт в этой игре может только расти, храним максимум из всего, что видели —
-// это не чинит бэкенд, но не даёт интерфейсу "моргать" нулём.
-let knownScores = {};
+let hostBusy = false;
+let hostFinished = false;
+let totalQuestions = 0;
 
 // ==== Ссылки на элементы экрана ====
 const screens = {
@@ -443,7 +419,7 @@ function renderQuizzes(quizzes, freshId) {
 
     const btn = document.createElement("button");
     btn.textContent = "Запустить";
-    btn.addEventListener("click", () => startRoom(quiz.id, btn));
+    btn.addEventListener("click", () => startRoom(quiz.id, btn, quiz.questions.length));
 
     card.append(title, meta, btn);
     grid.appendChild(card);
@@ -451,7 +427,8 @@ function renderQuizzes(quizzes, freshId) {
 }
 
 // ==== Шаг 1: создание комнаты из карточки квиза ====
-async function startRoom(quizId, btn) {
+async function startRoom(quizId, btn, questionCount) {
+  totalQuestions = questionCount;
   showLibraryError("");
   btn.disabled = true;
   try {
@@ -468,7 +445,7 @@ async function startRoom(quizId, btn) {
     roomCode = room.room_id;
     document.getElementById("room-code-display").textContent = roomCode;
     showScreen("waiting");
-    startPollingWaitingRoom();
+    pollHost();
   } catch (err) {
     showLibraryError(err.message);
     btn.disabled = false;
@@ -647,12 +624,35 @@ document.getElementById("editor-save-btn").addEventListener("click", async () =>
 });
 
 // ==== Шаг 2: пока ждём игроков — опрашиваем /state, чтобы обновлять список игроков ====
-function startPollingWaitingRoom() {
-  pollIntervalId = setInterval(async () => {
+function connectionError(message) {
+  const el = document.getElementById("connection-error");
+  el.textContent = message;
+  el.classList.toggle("hidden", !message);
+}
+
+async function pollHost() {
+  if (hostBusy || hostFinished) return;
+  hostBusy = true;
+  clearTimeout(pollIntervalId);
+  try {
     const state = await fetchState();
-    if (!state) return;
-    renderWaitingPlayers(state.players);
-  }, 1000);
+    connectionError("");
+    if (state.status === "finished") {
+      hostFinished = true;
+      showFinished(state);
+    } else if (state.status === "waiting") {
+      renderWaitingPlayers(state.players);
+      showScreen("waiting");
+    } else {
+      renderGameState(state);
+      showScreen("game");
+    }
+  } catch (err) {
+    connectionError("Не удалось обновить комнату. Повторяем подключение…");
+  } finally {
+    hostBusy = false;
+    if (!hostFinished) pollIntervalId = setTimeout(pollHost, 1000);
+  }
 }
 
 const lobbyChipRefs = {}; // playerId -> DOM-элемент
@@ -663,6 +663,7 @@ function renderWaitingPlayers(playersMap) {
   const players = Object.values(playersMap || {});
   hint.textContent = players.length ? `Игроков в комнате: ${players.length}` : "Ждём игроков...";
 
+  document.getElementById("start-btn").disabled = players.length === 0;
   const currentIds = players.map(p => p.id);
   Object.keys(lobbyChipRefs).forEach(id => {
     if (!currentIds.includes(id)) {
@@ -683,108 +684,39 @@ function renderWaitingPlayers(playersMap) {
   });
 }
 
-// ==== Шаг 3: запуск игры (нажатие "Начать викторину") ====
+document.getElementById("start-btn").disabled = true;
 document.getElementById("start-btn").addEventListener("click", async () => {
-  clearInterval(pollIntervalId);
-  await callNext();
-  showScreen("game");
-  startPollingGame();
-});
-
-// ==== Шаг 4: нажатие "Следующий вопрос" ====
-document.getElementById("next-btn").addEventListener("click", async () => {
-  const nextBtn = document.getElementById("next-btn");
-  nextBtn.disabled = true;
-  roundDuration = null; // новый раунд — заново определим длительность по первому /state
-  const result = await callNext();
-  nextBtn.disabled = false;
-  if (result && result.status === "finished") {
-    clearInterval(pollIntervalId);
-    showFinished();
+  if (hostBusy) return;
+  hostBusy = true;
+  clearTimeout(pollIntervalId);
+  const button = document.getElementById("start-btn");
+  button.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/rooms/${roomCode}/start`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    connectionError("");
+  } catch (err) {
+    connectionError("Не удалось начать игру. Проверьте подключение и попробуйте снова.");
+  } finally {
+    hostBusy = false;
+    await pollHost();
   }
 });
-
-async function callNext() {
-  const res = await fetch(`${API_BASE}/rooms/${roomCode}/next`, { method: "POST" });
-  if (!res.ok) {
-    console.error("Ошибка /next:", await res.text());
-    return null;
-  }
-  return res.json();
-}
-
-// ==== Шаг 5: во время игры — опрашиваем /state каждую секунду ====
-let lastRenderedQuestionIndex = null;
-
-function startPollingGame() {
-  pollIntervalId = setInterval(async () => {
-    const state = await fetchState();
-    if (!state) return;
-    if (DEBUG) console.debug("[quiz] /state →", state);
-    if (state.status === "finished") {
-      clearInterval(pollIntervalId);
-      showFinished();
-      return;
-    }
-    renderGameState(state);
-  }, 1000);
-}
 
 function renderGameState(state) {
-  // --- таймер-кольцо ---
-  const remaining = Number(state.time_remaining ?? 0);
-  if (roundDuration === null || remaining > roundDuration) roundDuration = Math.max(remaining, 1);
-  setTimerRing(remaining, roundDuration);
-
-  document.getElementById("qcounter").textContent =
-    state.question_index != null ? `Вопрос ${state.question_index + 1}` : "Вопрос";
-
-  // Перестраиваем вопрос и варианты ответа только когда вопрос реально сменился —
-  // раньше это происходило на каждый опрос /state (раз в секунду), из-за чего
-  // плитки постоянно пересоздавались и анимация появления проигрывалась заново
-  // (отсюда и "мигание").
-  if (state.question && state.question_index !== lastRenderedQuestionIndex) {
-    lastRenderedQuestionIndex = state.question_index;
-
-    document.getElementById("question-text").textContent = state.question.text;
-    const optionsEl = document.getElementById("options");
-    optionsEl.innerHTML = state.question.options
-      .map((opt, i) => `
-        <div class="option" style="animation-delay:${i * 0.06}s">
-          <span class="idx">${i + 1}</span>
-          <span>${escapeHtml(opt)}</span>
-        </div>
-      `)
-      .join("");
-  }
-
-  renderAnsweredMeter(state.players);
+  const players = Object.values(state.players || {});
+  const completed = players.filter(p => p.status === false).length;
+  document.getElementById("answered-meter").textContent = `Завершили: ${completed} из ${players.length}`;
+  const list = document.getElementById("progress-list");
+  list.innerHTML = players.map(p => {
+    const progress = p.status === false ? "Завершил квиз" : p.current_question < 0
+      ? "Получает первый вопрос" : `Вопрос ${p.current_question + 1} из ${totalQuestions}`;
+    return `<div class="progress-row"><span>${escapeHtml(p.name)}</span><span>${progress}</span></div>`;
+  }).join("");
   renderLeaderboard(state.players);
 }
 
-function renderAnsweredMeter(playersMap) {
-  const el = document.getElementById("answered-meter");
-  const players = Object.values(playersMap || {});
-  // Показываем счётчик, только если бэкенд реально присылает флаг "answered" —
-  // если поля нет ни у одного игрока, просто прячем блок вместо того, чтобы врать нулём.
-  const hasAnsweredField = players.some(p => typeof p.answered === "boolean");
-  if (!hasAnsweredField || players.length === 0) { el.classList.add("hidden"); return; }
-  const answeredCount = players.filter(p => p.answered).length;
-  el.classList.remove("hidden");
-  el.innerHTML = `Ответили: <b>${answeredCount}</b> из ${players.length}`;
-}
-
-function setTimerRing(remaining, total) {
-  const circumference = 169.6; // 2 * π * 27
-  const ratio = Math.max(0, Math.min(1, remaining / total));
-  const ring = document.getElementById("ring-fill");
-  ring.style.strokeDasharray = circumference;
-  ring.style.strokeDashoffset = circumference * (1 - ratio);
-  ring.style.stroke = ratio < 0.25 ? "var(--wrong)" : "var(--gold)";
-  document.getElementById("timer-num").textContent = Math.max(0, Math.ceil(remaining));
-}
-
-// ==== Счёт игроков: устойчиво к именам полей и временным провалам в 0 ====
+// ==== Счёт игроков с сервера ====
 function extractScore(p) {
   const raw = p.score ?? p.points ?? p.total_score ?? p.totalScore ?? 0;
   const num = typeof raw === "number" ? raw : Number(raw);
@@ -794,10 +726,7 @@ function extractScore(p) {
 function computePlayers(playersMap) {
   return Object.entries(playersMap || {})
     .map(([id, p]) => {
-      const seen = extractScore(p);
-      const best = Math.max(knownScores[id] || 0, seen);
-      knownScores[id] = best;
-      return { id, name: p.name, score: best };
+      return { id, name: p.name, score: extractScore(p) };
     })
     .sort((a, b) => b.score - a.score);
 }
@@ -846,8 +775,7 @@ function renderLeaderboard(playersMap) {
 }
 
 // ==== Шаг 6: экран окончания игры (рендерится один раз, тут пересборка DOM не проблема) ====
-async function showFinished() {
-  const state = await fetchState();
+function showFinished(state) {
   const players = state ? computePlayers(state.players) : [];
   renderPodium(players.slice(0, 3));
 
@@ -882,14 +810,9 @@ function renderPodium(top3) {
 
 // ==== Вспомогательное: запрос состояния комнаты ====
 async function fetchState() {
-  try {
-    const res = await fetch(`${API_BASE}/rooms/${roomCode}/state`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.error("Ошибка опроса /state:", err);
-    return null;
-  }
+  const res = await fetch(`${API_BASE}/rooms/${roomCode}/state`);
+  if (!res.ok) throw new Error(`Ошибка сервера: ${res.status}`);
+  return res.json();
 }
 
 // ==== Вспомогательное: защита от XSS при вставке имён игроков в HTML ====
